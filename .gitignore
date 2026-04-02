@@ -1,0 +1,12 @@
+# virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# python cache
+__pycache__/
+*.py[cod]
+
+# compiled libs
+*.so
