@@ -11,6 +11,7 @@ from src.utils.plotting import (
     plot_actual_trajectories,
     plot_tracking_error,
     plot_overlay_per_oscillator,
+    plot_overlay_all_oscillator,
     plot_phase_evolution,
     plot_phase_error,
     plot_polar_phase,
@@ -36,9 +37,9 @@ def get_config():
 def initialize_states(N, device, seed=0):
     torch.manual_seed(seed)
 
-    # random initial positions, velocities (-1, 1)
+    # random initial positions (-1, 1), velocities (-10, 10)
     x = 2 * torch.rand(N, device=device) - 1
-    v = 2 * torch.rand(N, device=device) - 1
+    v = 20 * torch.rand(N, device=device) - 10
 
     # random phases in [0, 2π)
     phi = torch.rand(N, device=device) * 2 * torch.pi
@@ -132,6 +133,7 @@ def run_simulation(cfg, oscillators, reference_generator, controller, sync_contr
         v = v_next
         phi = phi_next
 
+
     results = {
         "x": torch.stack(x_hist),
         "v": torch.stack(v_hist),
@@ -143,16 +145,18 @@ def run_simulation(cfg, oscillators, reference_generator, controller, sync_contr
     return results
 
 
-def plot_results(results, dt):
+def plot_results(results, dt, folder="graphs"):
     time = torch.arange(results["x"].shape[0]) * dt
+    save_path = folder
 
-    # plot_reference_trajectories(time, results["x_ref"])
-    # plot_actual_trajectories(time, results["x"])
-    # plot_tracking_error(time, results["err"])
-    plot_overlay_per_oscillator(time, results["x"], results["x_ref"])
-    # plot_phase_evolution(time, results["phi"])
-    # plot_phase_error(time, results["phi"], i=0, j=1)
-    plot_polar_phase(results["phi"], dt)
+    plot_reference_trajectories(time, results["x_ref"], save_path=f"{save_path}")
+    plot_actual_trajectories(time, results["x"], save_path=f"{save_path}")
+    plot_tracking_error(time, results["err"], save_path=f"{save_path}")
+    # plot_overlay_per_oscillator(time, results["x"], results["x_ref"])
+    plot_overlay_all_oscillator(time, results["x"], results["x_ref"], save_path=f"{save_path}")
+    plot_phase_evolution(time, results["phi"], save_path=f"{save_path}")
+    plot_phase_error(time, results["phi"], i=0, j=1, save_path=f"{save_path}")
+    plot_polar_phase(results["phi"], dt, save_path=f"{save_path}")
 
 
 def main():
@@ -174,7 +178,8 @@ def main():
         omega,
     )
 
-    plot_results(results, cfg["dt"])
+    save_path = "graphs/deterministic"
+    plot_results(results, cfg["dt"], folder=save_path)
 
 
 if __name__ == "__main__":

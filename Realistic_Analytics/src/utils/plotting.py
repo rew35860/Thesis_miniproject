@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 
 
-def plot_reference_trajectories(time, x_ref_hist):
+def plot_reference_trajectories(time, x_ref_hist, save_path="graphs"):
     plt.figure(figsize=(10, 5))
     for i in range(x_ref_hist.shape[1]):
         plt.plot(time, x_ref_hist[:, i], label=f"ref {i}")
@@ -12,10 +12,10 @@ def plot_reference_trajectories(time, x_ref_hist):
     plt.title("Reference trajectories")
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}/reference_trajectories.png")
 
 
-def plot_actual_trajectories(time, x_hist):
+def plot_actual_trajectories(time, x_hist, save_path="graphs"):
     plt.figure(figsize=(10, 5))
     for i in range(x_hist.shape[1]):
         plt.plot(time, x_hist[:, i], label=f"x {i}")
@@ -24,10 +24,10 @@ def plot_actual_trajectories(time, x_hist):
     plt.title("Actual trajectories")
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}/actual_trajectories.png")
 
 
-def plot_tracking_error(time, err_hist):
+def plot_tracking_error(time, err_hist, save_path="graphs"):
     plt.figure(figsize=(10, 5))
     for i in range(err_hist.shape[1]):
         plt.plot(time, err_hist[:, i], label=f"err {i}")
@@ -36,10 +36,10 @@ def plot_tracking_error(time, err_hist):
     plt.title("Tracking error for each oscillator")
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}/tracking_error.png")
 
 
-def plot_overlay_per_oscillator(time, x_hist, x_ref_hist):
+def plot_overlay_per_oscillator(time, x_hist, x_ref_hist, save_path="graphs"):
     N = x_hist.shape[1]
     for i in range(N):
         plt.figure(figsize=(10, 4))
@@ -50,10 +50,24 @@ def plot_overlay_per_oscillator(time, x_hist, x_ref_hist):
         plt.title(f"Oscillator {i}: actual vs reference")
         plt.legend()
         plt.tight_layout()
-        plt.show()
+        plt.savefig(f"{save_path}/overlay_oscillator_{i}.png")
 
 
-def plot_phase_evolution(time, phi_hist):
+def plot_overlay_all_oscillator(time, x_hist, x_ref_hist, save_path="graphs"):
+    plt.figure(figsize=(10, 4))
+    N = x_hist.shape[1]
+    for i in range(N):
+        plt.plot(time, x_hist[:, i], label=f"x_{i}")
+        plt.plot(time, x_ref_hist[:, i], "--", label=f"xref_{i}")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Position")
+    plt.title(f"{N} Oscillators: actual vs reference")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"{save_path}/overlay_all_oscillators.png")
+
+
+def plot_phase_evolution(time, phi_hist, save_path="graphs"):
     plt.figure(figsize=(10, 5))
     for i in range(phi_hist.shape[1]):
         plt.plot(time, phi_hist[:, i], label=f"phi {i}")
@@ -62,24 +76,28 @@ def plot_phase_evolution(time, phi_hist):
     plt.title("Phase evolution")
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}/phase_evolution.png")
 
 
-def plot_phase_error(time, phi_hist, i=0, j=1):
-    phase_error = torch.atan2(
-        torch.sin(phi_hist[:, i] - phi_hist[:, j]),
-        torch.cos(phi_hist[:, i] - phi_hist[:, j])
-    )
+def plot_phase_error(time, phi_hist, i=0, j=1, save_path="graphs"):
+    N = phi_hist.shape[1]
+    phase_error = torch.zeros((phi_hist.shape[0], N-1))
+    for j in range(1, N):
+        phase_error[:, j-1] = torch.atan2(
+            torch.sin(phi_hist[:, i] - phi_hist[:, j]),
+            torch.cos(phi_hist[:, i] - phi_hist[:, j])
+        )
+
     plt.figure(figsize=(10, 4))
     plt.plot(time, phase_error)
     plt.xlabel("Time [s]")
     plt.ylabel("Wrapped phase error")
-    plt.title(f"Phase error between oscillator {i} and {j}")
+    plt.title(f"Phase error between oscillator {i} and all others {N-1} oscillators")
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}/phase_error.png")
 
 
-def plot_polar_phase(phi_hist, dt):
+def plot_polar_phase(phi_hist, dt, save_path="graphs"):
     T = phi_hist.shape[0]
     time = torch.arange(T) * dt
 
@@ -91,10 +109,10 @@ def plot_polar_phase(phi_hist, dt):
 
     ax.set_title("Phase evolution (polar)")
     ax.legend(loc="upper right")
-    plt.show()
+    plt.savefig(f"{save_path}/polar_phase.png")
 
 
-def plot_control_input(time, u_hist):
+def plot_control_input(time, u_hist, save_path="graphs"):
     plt.figure(figsize=(10, 5))
     for i in range(u_hist.shape[1]):
         plt.plot(time, u_hist[:, i], label=f"u {i}")
@@ -103,4 +121,4 @@ def plot_control_input(time, u_hist):
     plt.title("Control input for each oscillator")
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}/control_input.png")
