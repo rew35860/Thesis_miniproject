@@ -2,11 +2,11 @@ import torch
 import matplotlib
 matplotlib.use("TkAgg")
 
-from src.oscillator import Oscillator
-from src.reference_generator import SinusoidalReference
-from src.controllers.pd_controller import PDController
-from src.controllers.synchronization_controller import SynchronizationController
-from src.utils.plotting import (
+from Realistic_Analytics.src.oscillator import Oscillator
+from Realistic_Analytics.src.reference_generator import SinusoidalReference
+from Realistic_Analytics.src.controllers.pd_controller import PDController
+from Realistic_Analytics.src.controllers.synchronization_controller import SynchronizationController
+from Realistic_Analytics.src.utils.plotting import (
     plot_reference_trajectories,
     plot_actual_trajectories,
     plot_tracking_error,
@@ -72,6 +72,7 @@ def run_simulation(cfg, oscillators, reference_generator, controller, sync_contr
     x_hist = []
     v_hist = []
     phi_hist = []
+    omega_tilde_hist = []
     xref_hist = []
     err_hist = []
     u_hist = []
@@ -84,6 +85,7 @@ def run_simulation(cfg, oscillators, reference_generator, controller, sync_contr
         x_ref_all = torch.zeros_like(x)
         err_all = torch.zeros_like(x)
         u_all = torch.zeros_like(x)
+        omega_tilde_all = torch.zeros_like(x)
 
         for i in range(cfg["N"]):
             phi_dot_i = sync_controller.corrected_frequency(
@@ -121,10 +123,12 @@ def run_simulation(cfg, oscillators, reference_generator, controller, sync_contr
             x_ref_all[i] = x_ref_i
             err_all[i] = x_ref_i - x[i]
             u_all[i] = u_i
+            omega_tilde_all[i] = phi_dot_i
 
         x_hist.append(x.clone())
         v_hist.append(v.clone())
         phi_hist.append(phi.clone())
+        omega_tilde_hist.append(omega_tilde_all.clone())
         xref_hist.append(x_ref_all.clone())
         err_hist.append(err_all.clone())
         u_hist.append(u_all.clone())
@@ -133,14 +137,14 @@ def run_simulation(cfg, oscillators, reference_generator, controller, sync_contr
         v = v_next
         phi = phi_next
 
-
     results = {
-        "x": torch.stack(x_hist),
-        "v": torch.stack(v_hist),
-        "phi": torch.stack(phi_hist),
-        "x_ref": torch.stack(xref_hist),
-        "err": torch.stack(err_hist),
-        "u": torch.stack(u_hist),
+        "x": torch.stack(x_hist),                     # [T, N]
+        "v": torch.stack(v_hist),                     # [T, N]
+        "phi": torch.stack(phi_hist),                 # [T, N]
+        "omega_tilde": torch.stack(omega_tilde_hist), # [T, N]
+        "x_ref": torch.stack(xref_hist),              # [T, N]
+        "err": torch.stack(err_hist),                 # [T, N]
+        "u": torch.stack(u_hist),                     # [T, N]
     }
     return results
 
