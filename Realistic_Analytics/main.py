@@ -1,179 +1,181 @@
 import torch
 import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
+matplotlib.use("TkAgg")
 
-device = "cpu"
-
-# -----------------------------
-# Parameters
-# -----------------------------
-N = 5
-T = 2000
-dt = 0.005
-
-A = 1.0
-m = 1.0
-d = 0.4
-k = 4.0
-
-kp = 20.0
-kd = 8.0
-
-K_sync = 1.5
-
-# nominal frequencies
-omega = torch.tensor([2.0 * torch.pi, 2.0 * torch.pi, 2.0 * torch.pi, 2.0 * torch.pi, 2.0 * torch.pi], device=device)
-
-# -----------------------------
-# Initial conditions
-# -----------------------------
-x = torch.zeros(N, device=device)
-v = torch.zeros(N, device=device)
-phi = torch.tensor([0.0, torch.pi / 2, torch.pi, 3 * torch.pi / 2, 2 * torch.pi], device=device)
-
-# storage
-x_hist = []
-v_hist = []
-phi_hist = []
-xref_hist = []
-
-# -----------------------------
-# Simulation loop
-# -----------------------------
-for t in range(T):
-    # pairwise phase differences: phi_i - phi_j
-    phi_i = phi.unsqueeze(1)          # (N, 1)
-    phi_j = phi.unsqueeze(0)          # (1, N)
-    phase_diff = phi_i - phi_j        # (N, N)
-
-    # synchronization term
-    sync_term = -K_sync * torch.sum(torch.sin(phase_diff), dim=1)
-
-    # phase dynamics
-    phi_dot = omega * (1 + sync_term)
-
-    # reference trajectory
-    x_ref = A * torch.sin(phi)
-    v_ref = A * torch.cos(phi) * phi_dot
-
-    # PD controller
-    u = kp * (x_ref - x) + kd * (v_ref - v)
-
-    # physical dynamics
-    x_dot = v
-    v_dot = (u - d * v - k * x) / m
-
-    # Euler integration
-    x = x + dt * x_dot
-    v = v + dt * v_dot
-    phi = phi + dt * phi_dot
-
-    # wrap phase to [0, 2pi)
-    phi = torch.remainder(phi, 2.0 * torch.pi)
-
-    # save
-    x_hist.append(x.clone())
-    v_hist.append(v.clone())
-    phi_hist.append(phi.clone())
-    xref_hist.append(x_ref.clone())
-
-# convert to tensors
-x_hist = torch.stack(x_hist)         # (T, N)
-v_hist = torch.stack(v_hist)
-phi_hist = torch.stack(phi_hist)
-xref_hist = torch.stack(xref_hist)
-
-# -----------------------------
-# Plot
-# -----------------------------
-time = torch.arange(T) * dt
-
-plt.figure(figsize=(10, 4))
-for i in range(N):
-    plt.plot(time, x_hist[:, i], label=f"x_{i}")
-    plt.plot(time, xref_hist[:, i], "--", label=f"xref_{i}")
-plt.xlabel("Time [s]")
-plt.ylabel("Position")
-plt.title("Oscillator tracking")
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-plt.figure(figsize=(10, 4))
-for i in range(N):
-    plt.plot(time, phi_hist[:, i], label=f"phi_{i}")
-plt.xlabel("Time [s]")
-plt.ylabel("Phase")
-plt.title("Phase evolution")
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-phase_error = torch.atan2(
-    torch.sin(phi_hist[:, 0] - phi_hist[:, 1]),
-    torch.cos(phi_hist[:, 0] - phi_hist[:, 1])
+from src.oscillator import Oscillator
+from src.reference_generator import SinusoidalReference
+from src.controllers.pd_controller import PDController
+from src.controllers.synchronization_controller import SynchronizationController
+from src.utils.plotting import (
+    plot_reference_trajectories,
+    plot_actual_trajectories,
+    plot_tracking_error,
+    plot_overlay_per_oscillator,
+    plot_phase_evolution,
+    plot_phase_error,
+    plot_polar_phase,
 )
 
-plt.figure(figsize=(10, 4))
-plt.plot(time, phase_error)
-plt.xlabel("Time [s]")
-plt.ylabel("Wrapped phase error")
-plt.title("Phase synchronization error")
-plt.tight_layout()
-plt.show()
 
-# -----------------------------
-# Polar plot of phase evolution (time as radius)
-# -----------------------------
-plt.figure(figsize=(6, 6))
-ax = plt.subplot(111, projection='polar')
-
-# create time vector
-T = phi_hist.shape[0]
-time = torch.arange(T) * dt   # make sure dt exists
-
-for i in range(N):
-    theta = phi_hist[:, i].cpu()
-    r = time.cpu()
-    
-    ax.plot(theta, r, label=f"osc {i}")
-
-ax.set_title("Phase evolution (polar)")
-ax.set_xlabel("Phase φ [rad]")
-ax.set_ylabel("Time [s]")
-ax.legend(loc="upper right")
-
-plt.show()
+def get_config():
+    return {
+        "device": "cpu",
+        "N": 3,
+        "T": 2000,
+        "dt": 0.005,
+        "A": 1.0,
+        "m": 1.0,
+        "d": 0.4,
+        "k": 4.0,
+        "kp": 40.0,
+        "kd": 30.0,
+        "k_sync": 0.15,
+    }
 
 
-plt.figure(figsize=(6, 6))
+def initialize_states(N, device, seed=0):
+    torch.manual_seed(seed)
 
-for i in range(N):
-    x_phase = torch.cos(phi_hist[:, i])
-    y_phase = torch.sin(phi_hist[:, i])
-    plt.plot(x_phase, y_phase, label=f"osc {i}")
+    # random initial positions, velocities (-1, 1)
+    x = 2 * torch.rand(N, device=device) - 1
+    v = 2 * torch.rand(N, device=device) - 1
 
-# draw unit circle
-theta = torch.linspace(0, 2*torch.pi, 200)
-plt.plot(torch.cos(theta), torch.sin(theta), 'k--', alpha=0.3)
+    # random phases in [0, 2π)
+    phi = torch.rand(N, device=device) * 2 * torch.pi
 
-plt.xlabel("cos(phi)")
-plt.ylabel("sin(phi)")
-plt.title("Phase evolution on unit circle")
-plt.axis("equal")
-plt.legend()
-plt.show()
+    # nominal frequencies (same for all)
+    omega = torch.ones(N, device=device) * (2.0 * torch.pi)
+
+    return x, v, phi, omega
 
 
-phase_diff_x = torch.cos(phi_hist[:, 0]) - torch.cos(phi_hist[:, 1])
-phase_diff_y = torch.sin(phi_hist[:, 0]) - torch.sin(phi_hist[:, 1])
+def initialize_modules(cfg, omega):
+    oscillators = [
+        Oscillator(m=cfg["m"], d=cfg["d"], k=cfg["k"])
+        for _ in range(cfg["N"])
+    ]
 
-distance = torch.sqrt(phase_diff_x**2 + phase_diff_y**2)
+    reference_generator = SinusoidalReference(A=cfg["A"])
+    controller = PDController(
+        kp=cfg["kp"],
+        kd=cfg["kd"],
+        d=cfg["d"],
+        k=cfg["k"],
+    )
+    sync_controller = SynchronizationController(k_ps=cfg["k_sync"])
 
-plt.figure(figsize=(10, 4))
-plt.plot(time, distance)
-plt.xlabel("Time [s]")
-plt.ylabel("Distance on unit circle")
-plt.title("Phase synchronization (should go to 0)")
-plt.show()
+    return oscillators, reference_generator, controller, sync_controller, omega
+
+
+def run_simulation(cfg, oscillators, reference_generator, controller, sync_controller, x, v, phi, omega):
+    x_hist = []
+    v_hist = []
+    phi_hist = []
+    xref_hist = []
+    err_hist = []
+    u_hist = []
+
+    for _ in range(cfg["T"]):
+        x_next = torch.zeros_like(x)
+        v_next = torch.zeros_like(v)
+        phi_next = torch.zeros_like(phi)
+
+        x_ref_all = torch.zeros_like(x)
+        err_all = torch.zeros_like(x)
+        u_all = torch.zeros_like(x)
+
+        for i in range(cfg["N"]):
+            phi_dot_i = sync_controller.corrected_frequency(
+                i=i,
+                phi=phi,
+                omega_i=omega[i]
+            )
+
+            x_ref_i, v_ref_i = reference_generator.get_reference(
+                phi=phi[i],
+                phi_dot=phi_dot_i
+            )
+
+            u_i = controller.compute(
+                x=x[i],
+                v=v[i],
+                x_ref=x_ref_i,
+                v_ref=v_ref_i
+            )
+
+            x_i_next, v_i_next = oscillators[i].step(
+                x=x[i],
+                v=v[i],
+                u=u_i,
+                dt=cfg["dt"]
+            )
+
+            phi_i_next = phi[i] + cfg["dt"] * phi_dot_i
+            phi_i_next = torch.remainder(phi_i_next, 2.0 * torch.pi)
+
+            x_next[i] = x_i_next
+            v_next[i] = v_i_next
+            phi_next[i] = phi_i_next
+
+            x_ref_all[i] = x_ref_i
+            err_all[i] = x_ref_i - x[i]
+            u_all[i] = u_i
+
+        x_hist.append(x.clone())
+        v_hist.append(v.clone())
+        phi_hist.append(phi.clone())
+        xref_hist.append(x_ref_all.clone())
+        err_hist.append(err_all.clone())
+        u_hist.append(u_all.clone())
+
+        x = x_next
+        v = v_next
+        phi = phi_next
+
+    results = {
+        "x": torch.stack(x_hist),
+        "v": torch.stack(v_hist),
+        "phi": torch.stack(phi_hist),
+        "x_ref": torch.stack(xref_hist),
+        "err": torch.stack(err_hist),
+        "u": torch.stack(u_hist),
+    }
+    return results
+
+
+def plot_results(results, dt):
+    time = torch.arange(results["x"].shape[0]) * dt
+
+    # plot_reference_trajectories(time, results["x_ref"])
+    # plot_actual_trajectories(time, results["x"])
+    # plot_tracking_error(time, results["err"])
+    plot_overlay_per_oscillator(time, results["x"], results["x_ref"])
+    # plot_phase_evolution(time, results["phi"])
+    # plot_phase_error(time, results["phi"], i=0, j=1)
+    plot_polar_phase(results["phi"], dt)
+
+
+def main():
+    cfg = get_config()
+
+    x, v, phi, omega = initialize_states(cfg["N"], cfg["device"])
+
+    oscillators, reference_generator, controller, sync_controller, omega = initialize_modules(cfg, omega)
+
+    results = run_simulation(
+        cfg,
+        oscillators,
+        reference_generator,
+        controller,
+        sync_controller,
+        x,
+        v,
+        phi,
+        omega,
+    )
+
+    plot_results(results, cfg["dt"])
+
+
+if __name__ == "__main__":
+    main()

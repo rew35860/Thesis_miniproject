@@ -2,6 +2,7 @@ import torch
 import matplotlib.pyplot as plt
 
 
+
 def plot_reference_trajectories(time, x_ref_hist):
     plt.figure(figsize=(10, 5))
     for i in range(x_ref_hist.shape[1]):
@@ -90,4 +91,16 @@ def plot_polar_phase(phi_hist, dt):
 
     ax.set_title("Phase evolution (polar)")
     ax.legend(loc="upper right")
+    plt.show()
+
+
+def plot_control_input(time, u_hist):
+    plt.figure(figsize=(10, 5))
+    for i in range(u_hist.shape[1]):
+        plt.plot(time, u_hist[:, i], label=f"u {i}")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Control input")
+    plt.title("Control input for each oscillator")
+    plt.legend()
+    plt.tight_layout()
     plt.show()
