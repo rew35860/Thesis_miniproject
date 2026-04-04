@@ -1,9 +1,9 @@
 import torch
 
-from Realistic_Analytics.src.models.oscillator import Oscillator
-from Realistic_Analytics.src.models.reference_generator import SinusoidalReference
-from Realistic_Analytics.src.controllers.pd_controller import PDController
-from Realistic_Analytics.src.controllers.synchronization_controller import SynchronizationController
+from src.models.oscillator import Oscillator
+from src.models.reference_generator import SinusoidalReference
+from src.controllers.pd_controller import PDController
+from src.controllers.synchronization_controller import SynchronizationController
 
 
 def initialize_states(cfg, seed=0):

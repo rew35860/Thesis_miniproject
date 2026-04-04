@@ -3,14 +3,14 @@ from tqdm import tqdm
 from pathlib import Path
 from torch.utils.data import ConcatDataset
 
-from Realistic_Analytics.src.config import get_config
-from Realistic_Analytics.src.simulation.sim_helper import (
+from src.config import get_config
+from src.simulation.sim_helper import (
     initialize_states,
     initialize_modules,
     run_simulation,
 )
-from Realistic_Analytics.src.utils.dataset_io import save_dataset_to_pt
-from Realistic_Analytics.src.data.dataset_builder import TrajectoryWindowDataset
+from src.utils.dataset_io import save_dataset_to_pt
+from src.data.dataset_builder import TrajectoryWindowDataset
 
 
 def generate_rollout(cfg, seed):
@@ -82,12 +82,11 @@ if __name__ == "__main__":
         use_sin_cos_phase=True,
     )
 
-    DATA_DIR = Path("Realistic_Analytics/data")
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-
+    path_data_dir = "data"
+    
     save_dataset_to_pt(
         ds_phase,
-        DATA_DIR / "dataset_phase_freq.pt",
+        f"{path_data_dir}/dataset_phase_freq.pt",
         metadata={
             "T": cfg.T,
             "dt": cfg.dt,
@@ -103,7 +102,7 @@ if __name__ == "__main__":
 
     save_dataset_to_pt(
         ds_state,
-        DATA_DIR / "dataset_state_phase_freq.pt",
+        f"{path_data_dir}/dataset_state_phase_freq.pt",
         metadata={
             "T": cfg.T,
             "dt": cfg.dt,

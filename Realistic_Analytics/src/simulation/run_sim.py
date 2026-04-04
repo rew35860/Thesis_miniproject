@@ -1,8 +1,8 @@
 import torch
 from pathlib import Path
-from Realistic_Analytics.src.config import get_config
-from Realistic_Analytics.src.simulation.sim_helper import initialize_states, initialize_modules, run_simulation
-from Realistic_Analytics.src.utils.plotting import (
+from src.config import get_config
+from src.simulation.sim_helper import initialize_states, initialize_modules, run_simulation
+from src.utils.plotting import (
     plot_reference_trajectories,
     plot_actual_trajectories,
     plot_tracking_error,
@@ -37,9 +37,7 @@ def main():
     results = run_simulation(cfg, oscillators, ref_gen, ctrl, sync_ctrl,
                             x, v, phi, omega)
 
-    DATA_DIR = Path("Realistic_Analytics/graphs")
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    plot_results(results, cfg.dt, folder=f"{DATA_DIR}/deterministic")
+    plot_results(results, cfg.dt, folder=f"graphs/deterministic")
 
 
 if __name__ == "__main__":

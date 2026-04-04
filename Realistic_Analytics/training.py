@@ -2,11 +2,11 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 
-from Realistic_Analytics.src.utils.plotting import plot_full_trajectory, plot_losses, plot_predictions, plot_dataset_samples
-from Realistic_Analytics.src.utils.dataset_io import make_dataloaders
-from Realistic_Analytics.src.models.mlp import MLP
-from Realistic_Analytics.src.utils.model_io import load_model
-from Realistic_Analytics.src.config import get_mlp_config
+from src.utils.plotting import plot_full_trajectory, plot_losses, plot_predictions, plot_dataset_samples
+from src.utils.dataset_io import make_dataloaders
+from src.models.mlp import MLP
+from src.utils.model_io import load_model
+from src.config import get_mlp_config
 
 
 def evaluate(model, loader, device):

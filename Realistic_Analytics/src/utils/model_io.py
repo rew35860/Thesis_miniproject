@@ -1,5 +1,5 @@
 import torch
-from Realistic_Analytics.src.models.mlp import MLP
+from src.models.mlp import MLP
 
 
 def load_model(model_path, device):
