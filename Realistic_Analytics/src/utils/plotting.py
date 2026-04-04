@@ -2,7 +2,6 @@ import torch
 import matplotlib.pyplot as plt
 
 
-
 def plot_reference_trajectories(time, x_ref_hist, save_path="graphs"):
     plt.figure(figsize=(10, 5))
     for i in range(x_ref_hist.shape[1]):
@@ -122,3 +121,107 @@ def plot_control_input(time, u_hist, save_path="graphs"):
     plt.legend()
     plt.tight_layout()
     plt.savefig(f"{save_path}/control_input.png")
+
+
+# Plotting For Training
+def plot_losses(train_losses, val_losses):
+    plt.figure(figsize=(7, 4))
+    plt.plot(train_losses, label="train")
+    plt.plot(val_losses, label="val")
+    plt.xlabel("Epoch")
+    plt.ylabel("MSE loss")
+    plt.title("MLP training loss")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_predictions(model, X, Y, device, dt=0.005, idx=1000):
+    model.eval()
+
+    with torch.no_grad():
+        x = X[idx].unsqueeze(0).to(device)
+        y_true = Y[idx].cpu().numpy()
+        y_pred = model(x).squeeze(0).cpu().numpy()
+
+    t_future = torch.arange(len(y_true)) * dt
+
+    plt.figure(figsize=(8, 4))
+
+    # plot local prediction window
+    plt.plot(t_future.numpy(), y_true, label="ground truth")
+    plt.plot(t_future.numpy(), y_pred, label="prediction")
+
+    plt.xlabel("Time (s)")
+    plt.ylabel("Position")
+    plt.title(f"Local prediction window (0–{len(y_true)*dt:.2f}s)")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_full_trajectory(
+    model,
+    X,
+    Y,
+    metadata,
+    device,
+    rollout_idx=0,
+    osc_idx=0,
+):
+    model.eval()
+
+    N = metadata["N"]
+    T = metadata["T"]
+    horizon = metadata["horizon"]
+    dt = metadata["dt"]
+
+    samples_per_osc = T - horizon - 1
+    start_idx = rollout_idx * N * samples_per_osc + osc_idx * samples_per_osc
+
+    preds = []
+    trues = []
+
+    with torch.no_grad():
+        for local_t in range(samples_per_osc):
+            idx = start_idx + local_t
+
+            x = X[idx].unsqueeze(0).to(device)
+            y_true = Y[idx][0].item()
+            y_pred = model(x).squeeze(0)[0].item()
+
+            trues.append(y_true)
+            preds.append(y_pred)
+
+    preds = torch.tensor(preds)
+    trues = torch.tensor(trues)
+    t_axis = torch.arange(samples_per_osc, dtype=torch.float32) * dt
+
+    plt.figure(figsize=(10, 4))
+    plt.plot(t_axis.numpy(), trues.numpy(), label="ground truth")
+    plt.plot(t_axis.numpy(), preds.numpy(), label="prediction")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Position")
+    plt.title(f"Full trajectory | rollout={rollout_idx}, osc={osc_idx}")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_dataset_samples(Y, metadata, start_idx=0, num_points=2000):
+    Y = Y.cpu()
+
+    segment = Y[start_idx:start_idx + num_points]
+    values = segment[:, 0] if segment.ndim > 1 else segment
+    dt = metadata["dt"]
+
+    t = torch.arange(len(values)) * dt
+
+    plt.figure(figsize=(8, 4))
+    plt.plot(t.numpy(), values.numpy())
+
+    plt.title("Reconstructed trajectory (time-corrected)")
+    plt.xlabel("Time (seconds)")
+    plt.ylabel("x")
+    plt.tight_layout()
+    plt.show()

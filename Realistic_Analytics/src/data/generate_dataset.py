@@ -1,10 +1,10 @@
 import torch
 from tqdm import tqdm
 from pathlib import Path
-from torch.utils.data import ConcatDataset, DataLoader
+from torch.utils.data import ConcatDataset
 
-from Realistic_Analytics.main import (
-    get_config,
+from Realistic_Analytics.src.config import get_config
+from Realistic_Analytics.src.simulation.sim_helper import (
     initialize_states,
     initialize_modules,
     run_simulation,
@@ -14,13 +14,15 @@ from Realistic_Analytics.src.data.dataset_builder import TrajectoryWindowDataset
 
 
 def generate_rollout(cfg, seed):
-    x, v, phi, omega = initialize_states(cfg["N"], cfg["device"], seed=seed)
-    oscillators, reference_generator, controller, sync_controller, omega = initialize_modules(cfg, omega)
+    x, v, phi, omega = initialize_states(cfg, seed=seed)
+
+    oscillators, ref_gen, controller, sync_controller, omega = \
+        initialize_modules(cfg, omega)
 
     results = run_simulation(
         cfg,
         oscillators,
-        reference_generator,
+        ref_gen,
         controller,
         sync_controller,
         x,
@@ -32,6 +34,7 @@ def generate_rollout(cfg, seed):
 
 
 def build_dataset_from_many_rollouts(
+    cfg,
     num_rollouts=50,
     horizon=20,
     condition_mode="phase_freq",
@@ -39,11 +42,10 @@ def build_dataset_from_many_rollouts(
     flatten_target=True,
     use_sin_cos_phase=False,
 ):
-    cfg = get_config()
     datasets = []
 
     for seed in tqdm(range(num_rollouts), desc="Generating rollouts"):
-        results = generate_rollout(cfg, seed=seed)
+        results = generate_rollout(cfg, seed)
 
         ds = TrajectoryWindowDataset(
             results=results,
@@ -53,78 +55,30 @@ def build_dataset_from_many_rollouts(
             flatten_target=flatten_target,
             use_sin_cos_phase=use_sin_cos_phase,
         )
+
         datasets.append(ds)
 
     return ConcatDataset(datasets)
 
 
-def dataset_to_tensors(dataset):
-    """
-    Convert either a TrajectoryWindowDataset or a ConcatDataset
-    into two tensors: X and Y.
-    """
-    if hasattr(dataset, "inputs") and hasattr(dataset, "targets"):
-        X = dataset.inputs
-        Y = dataset.targets
-    else:
-        xs = []
-        ys = []
-        for x, y in dataset:
-            xs.append(x)
-            ys.append(y)
-        X = torch.stack(xs)
-        Y = torch.stack(ys)
-
-    return X, Y
-
-
-def save_dataset_to_pt(dataset, path):
-    X, Y = dataset_to_tensors(dataset)
-
-    torch.save(
-        {
-            "inputs": X,
-            "targets": Y,
-        },
-        path,
-    )
-
-    print(f"Saved dataset to {path}")
-    print("inputs shape:", X.shape)
-    print("targets shape:", Y.shape)
-
-
-def load_dataset_from_pt(path):
-    data = torch.load(path)
-
-    X = data["inputs"].float()
-    Y = data["targets"].float()
-
-    print(f"Loaded dataset from {path}")
-    print("inputs shape:", X.shape)
-    print("targets shape:", Y.shape)
-
-    return X, Y
-
-
 if __name__ == "__main__":
+    cfg = get_config()
+
     # 1) phase + frequency only
     ds_phase = build_dataset_from_many_rollouts(
+        cfg,
         num_rollouts=50,
         horizon=20,
         condition_mode="phase_freq",
-        predict_velocity=False,
-        flatten_target=True,
-        use_sin_cos_phase=True,   # better than raw wrapped phi
+        use_sin_cos_phase=True,
     )
 
     # 2) state + phase + frequency
     ds_state = build_dataset_from_many_rollouts(
+        cfg,
         num_rollouts=50,
         horizon=20,
         condition_mode="state_phase_freq",
-        predict_velocity=False,
-        flatten_target=True,
         use_sin_cos_phase=True,
     )
 
@@ -135,6 +89,9 @@ if __name__ == "__main__":
         ds_phase,
         DATA_DIR / "dataset_phase_freq.pt",
         metadata={
+            "T": cfg.T,
+            "dt": cfg.dt,
+            "N": cfg.N,
             "horizon": 20,
             "condition_mode": "phase_freq",
             "predict_velocity": False,
@@ -148,6 +105,9 @@ if __name__ == "__main__":
         ds_state,
         DATA_DIR / "dataset_state_phase_freq.pt",
         metadata={
+            "T": cfg.T,
+            "dt": cfg.dt,
+            "N": cfg.N,
             "horizon": 20,
             "condition_mode": "state_phase_freq",
             "predict_velocity": False,
@@ -156,17 +116,3 @@ if __name__ == "__main__":
             "num_rollouts": 50,
         },
     )
-
-    print("phase+freq dataset size:", len(ds_phase))
-    print("state+phase+freq dataset size:", len(ds_state))
-
-    # inspect one batch
-    loader = DataLoader(ds_phase, batch_size=32, shuffle=True)
-    xb, yb = next(iter(loader))
-    print("phase+freq input shape:", xb.shape)
-    print("phase+freq target shape:", yb.shape)
-
-    loader2 = DataLoader(ds_state, batch_size=32, shuffle=True)
-    xb2, yb2 = next(iter(loader2))
-    print("state+phase+freq input shape:", xb2.shape)
-    print("state+phase+freq target shape:", yb2.shape)
