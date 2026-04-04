@@ -45,31 +45,28 @@ def save_dataset_to_pt(dataset, path, metadata=None):
         print("metadata:", metadata)
 
 
-def load_dataset_from_pt(path, return_metadata=False):
-    data = torch.load(path)
+def load_dataset_from_pt(path, return_metadata=False, device="cpu"):
+    data = torch.load(path, map_location=device)
 
     X = data["inputs"].float()
     Y = data["targets"].float()
     metadata = data.get("metadata", None)
 
-    print(f"Loaded dataset from {path}")
-    print("inputs shape:", X.shape)
-    print("targets shape:", Y.shape)
-    if metadata is not None:
-        print("metadata:", metadata)
+    if return_metadata and metadata is None:
+        raise ValueError("Metadata not found in dataset file")
 
     if return_metadata:
         return X, Y, metadata
     return X, Y
 
 
-def load_tensor_dataset(path, return_metadata=False):
+def load_tensor_dataset(path, return_metadata=False, device="cpu"):
     if return_metadata:
-        X, Y, metadata = load_dataset_from_pt(path, return_metadata=True)
+        X, Y, metadata = load_dataset_from_pt(path, return_metadata=True, device=device)
         dataset = TensorDataset(X, Y)
         return dataset, X, Y, metadata
 
-    X, Y = load_dataset_from_pt(path, return_metadata=False)
+    X, Y = load_dataset_from_pt(path, return_metadata=False, device=device)
     dataset = TensorDataset(X, Y)
     return dataset, X, Y
 
@@ -81,6 +78,7 @@ def make_dataloaders(
     val_ratio=0.1,
     seed=42,
     return_metadata=False,
+    device="cpu",
 ):
     """
     Load dataset from disk, split into train/val/test,
@@ -95,11 +93,14 @@ def make_dataloaders(
         dataset, X, Y, metadata = load_tensor_dataset(
             dataset_path,
             return_metadata=True,
+            device=device
         )
     else:
         dataset, X, Y = load_tensor_dataset(
             dataset_path,
             return_metadata=False,
+            device=device
+
         )
         metadata = None
 
