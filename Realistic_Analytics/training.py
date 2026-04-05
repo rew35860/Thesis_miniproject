@@ -130,59 +130,25 @@ def train_model(
 
 if __name__ == "__main__":
     # Choose one:
-    dataset_path1 = "./data/dataset_phase_trig_freq.pt"
-    model_save_path1 = "./models/mlp_phase_trig_freq.pt"
+    dataset_path = "./data/xv/dataset_phase_freq.pt"
+    model_save_path = "./models/mlp_phase_freq.pt"
 
-    data2 = "./data/dataset_state_phase_trig_freq.pt"
-    model_save_path2 = "./models/mlp_state_phase_trig_freq.pt"
-
-    data3 = "./data/dataset_phase_freq.pt"
-    model_save_path3 = "./models/mlp_phase_freq.pt"
-
-    dataset_path = "./data/dataset_state_phase_freq.pt"
-    model_save_path = "./models/mlp_state_phase_freq.pt"
-
-
-    data4 = "./data/x/dataset_state_phase_trig_freq.pt"
-    model_save_path4 = "./models/x/mlp_state_phase_trig_freq.pt"
-
-    data5 = "./data/x/dataset_phase_freq.pt"
-    model_save_path5 = "./models/x/mlp_phase_freq.pt"
-
-    dataset_path6 = "./data/x/dataset_state_phase_freq.pt"
-    model_save_path6 = "./models/x/mlp_state_phase_freq.pt"
-
-
-
-    dataset = [data3, dataset_path, data4, data5, dataset_path6]
-    model_save = [model_save_path3, model_save_path, model_save_path4, model_save_path5, model_save_path6]
+    # dataset_path = "./data/dataset_state_phase_freq.pt"
+    # model_save_path = "./models/mlp_state_phase_freq.pt"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    for ds_path, model_path in zip(dataset, model_save):
-        print(f"\nTraining on dataset: {ds_path}")
-        print(f"Model will be saved to: {model_path}")
         
-        model, X, Y, metadata, train_losses, val_losses, device = train_model(
-            dataset_path=ds_path,
-            model_save_path=model_path,
-            train_cfg=get_mlp_config(),
-            device=device,
-        )
+    model, X, Y, metadata, train_losses, val_losses, device = train_model(
+        dataset_path=dataset_path,
+        model_save_path=model_save_path,
+        train_cfg=get_mlp_config(),
+        device=device,
+    )
 
-        if "x" in model_path: 
-            path_save = f"graphs/{Path(model_path).stem}_x"
-        else: 
-            path_save = f"graphs/{Path(model_path).stem}"
-
-        plot_losses(train_losses, val_losses, save_path=f"{path_save}")
-        plot_predictions(model, X, Y, device, save_path=f"{path_save}")
-        plot_full_trajectory(model, X, Y, metadata, device, save_path=f"{path_save}")
-        plot_dataset_samples(Y, metadata, num_points=2000, save_path=f"{path_save}")
-
-
-    model, checkpoint = load_model(model_save_path, device=device)
-
-    horizon = checkpoint["metadata"]
-    print("Horizon:", horizon)
+    path_save = "./graphs/mlp_phase_freq"
+    plot_losses(train_losses, val_losses, save_path=f"{path_save}")
+    plot_predictions(model, X, Y, device, metadata["predict_velocity"], metadata["horizon"], save_path=f"{path_save}")
+    plot_full_trajectory(model, X, Y, metadata, device, save_path=f"{path_save}")
+    # plot_dataset_samples(Y, metadata, num_points=2000, save_path=f"{path_save}")

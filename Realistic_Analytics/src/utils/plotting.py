@@ -136,7 +136,7 @@ def plot_losses(train_losses, val_losses, save_path="graphs"):
     plt.savefig(f"{save_path}_training_loss.png")
 
 
-def plot_predictions(model, X, Y, device, dt=0.005, idx=1000, save_path="graphs"):
+def plot_predictions(model, X, Y, device, predict_velocity=False, horizon=20, dt=0.005, idx=1000, save_path="graphs"):
     model.eval()
 
     with torch.no_grad():
@@ -144,6 +144,10 @@ def plot_predictions(model, X, Y, device, dt=0.005, idx=1000, save_path="graphs"
         y_true = Y[idx].cpu().numpy()
         y_pred = model(x).squeeze(0).cpu().numpy()
 
+    if predict_velocity: 
+        y_true = y_true[:horizon]
+        y_pred = y_pred[:horizon]
+        
     t_future = torch.arange(len(y_true)) * dt
 
     plt.figure(figsize=(8, 4))
