@@ -17,7 +17,7 @@ def generate_rollout(cfg, seed):
     x, v, phi, omega = initialize_states(cfg, seed=seed)
 
     oscillators, ref_gen, controller, sync_controller, omega = \
-        initialize_modules(cfg, omega)
+        initialize_modules(cfg, "sinusoidal", None, omega)
 
     results = run_simulation(
         cfg,
@@ -70,6 +70,7 @@ if __name__ == "__main__":
         num_rollouts=50,
         horizon=20,
         condition_mode="phase_freq",
+        predict_velocity=True,
         use_sin_cos_phase=True,
     )
 
@@ -79,21 +80,22 @@ if __name__ == "__main__":
         num_rollouts=50,
         horizon=20,
         condition_mode="state_phase_freq",
+        predict_velocity=True,
         use_sin_cos_phase=True,
     )
 
     path_data_dir = "data"
-    
+
     save_dataset_to_pt(
         ds_phase,
-        f"{path_data_dir}/dataset_phase_freq.pt",
+        f"{path_data_dir}/dataset_phase_trig_freq.pt",
         metadata={
             "T": cfg.T,
             "dt": cfg.dt,
             "N": cfg.N,
             "horizon": 20,
             "condition_mode": "phase_freq",
-            "predict_velocity": False,
+            "predict_velocity": True,
             "flatten_target": True,
             "use_sin_cos_phase": True,
             "num_rollouts": 50,
@@ -102,14 +104,14 @@ if __name__ == "__main__":
 
     save_dataset_to_pt(
         ds_state,
-        f"{path_data_dir}/dataset_state_phase_freq.pt",
+        f"{path_data_dir}/dataset_state_phase_trig_freq.pt",
         metadata={
             "T": cfg.T,
             "dt": cfg.dt,
             "N": cfg.N,
             "horizon": 20,
             "condition_mode": "state_phase_freq",
-            "predict_velocity": False,
+            "predict_velocity": True,
             "flatten_target": True,
             "use_sin_cos_phase": True,
             "num_rollouts": 50,

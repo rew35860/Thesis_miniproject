@@ -32,12 +32,14 @@ def main():
     cfg = get_config()
 
     x, v, phi, omega = initialize_states(cfg)
-    oscillators, ref_gen, ctrl, sync_ctrl, omega = initialize_modules(cfg, omega)
 
+    model_path = "checkpoints/mlp_state_phase_freq.pt"
+    oscillators, ref_gen, ctrl, sync_ctrl, omega = initialize_modules(cfg, "mlp", model_path, omega)
+    
     results = run_simulation(cfg, oscillators, ref_gen, ctrl, sync_ctrl,
                             x, v, phi, omega)
 
-    plot_results(results, cfg.dt, folder=f"graphs/deterministic")
+    plot_results(results, cfg.dt, folder=f"graphs/mlp")
 
 
 if __name__ == "__main__":

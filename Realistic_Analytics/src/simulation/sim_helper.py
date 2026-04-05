@@ -4,6 +4,7 @@ from src.models.oscillator import Oscillator
 from src.models.reference_generator import SinusoidalReference
 from src.controllers.pd_controller import PDController
 from src.controllers.synchronization_controller import SynchronizationController
+from src.models.mlp import MLPReferenceGenerator, load_model
 
 
 def initialize_states(cfg, seed=0):
@@ -17,13 +18,13 @@ def initialize_states(cfg, seed=0):
     return x, v, phi, omega
 
 
-def initialize_modules(cfg, omega):
+def initialize_modules(cfg, model, model_path, omega):
     oscillators = [
         Oscillator(m=cfg.m, d=cfg.d, k=cfg.k)
         for _ in range(cfg.N)
     ]
 
-    reference_generator = SinusoidalReference(A=cfg.A)
+    reference_generator = build_reference_generator(model, model_path, cfg)
 
     controller = PDController(
         kp=cfg.kp,
@@ -31,12 +32,47 @@ def initialize_modules(cfg, omega):
         d=cfg.d,
         k=cfg.k,
     )
-
+    
     sync_controller = SynchronizationController(k_ps=cfg.k_sync)
 
     return oscillators, reference_generator, controller, sync_controller, omega
 
 
+def build_reference_generator(model, model_path, cfg=None):
+    if model == "sinusoidal":
+        return SinusoidalReference(A=cfg.A)
+
+    elif model == "mlp":
+        model, checkpoint = load_model(model_path, device=cfg.device)
+
+        horizon = checkpoint["horizon"]
+        # or checkpoint["output_dim"] only if x_only and output_dim == horizon
+
+        return MLPReferenceGenerator(
+            model=model,
+            condition_mode=checkpoint["metadata"]["condition_mode"],
+            predict_mode=checkpoint["metadata"]["predict_velocity"],
+            horizon=horizon,
+            dt=cfg.dt,
+            device=cfg.device,
+        )
+
+    # elif cfg.reference_type == "diffusion":
+    #     model, checkpoint = load_diffusion_model(cfg.model_path, device=cfg.device)
+
+    #     return DiffusionReferenceGenerator(
+    #         model=model,
+    #         condition_mode=checkpoint["condition_mode"],
+    #         predict_mode=checkpoint["predict_mode"],
+    #         horizon=checkpoint["horizon"],
+    #         dt=cfg.dt,
+    #         device=cfg.device,
+    #     )
+
+    else:
+        raise ValueError(f"Unknown reference_type: {cfg.reference_type}")
+    
+    
 def run_simulation(cfg, oscillators, reference_generator,
                    controller, sync_controller,
                    x, v, phi, omega):
@@ -60,8 +96,8 @@ def run_simulation(cfg, oscillators, reference_generator,
                 i=i, phi=phi, omega_i=omega[i]
             )
 
-            x_ref_i, v_ref_i = reference_generator.get_reference(
-                phi=phi[i], phi_dot=phi_dot_i
+            x_ref_i, v_ref_i, pred  = reference_generator.get_reference(
+                x=x[i], v=v[i], phi=phi[i], phi_dot=phi_dot_i
             )
 
             u_i = controller.compute(

@@ -124,7 +124,7 @@ def plot_control_input(time, u_hist, save_path="graphs"):
 
 
 # Plotting For Training
-def plot_losses(train_losses, val_losses):
+def plot_losses(train_losses, val_losses, save_path="graphs"):
     plt.figure(figsize=(7, 4))
     plt.plot(train_losses, label="train")
     plt.plot(val_losses, label="val")
@@ -133,10 +133,10 @@ def plot_losses(train_losses, val_losses):
     plt.title("MLP training loss")
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}_training_loss.png")
 
 
-def plot_predictions(model, X, Y, device, dt=0.005, idx=1000):
+def plot_predictions(model, X, Y, device, dt=0.005, idx=1000, save_path="graphs"):
     model.eval()
 
     with torch.no_grad():
@@ -157,7 +157,7 @@ def plot_predictions(model, X, Y, device, dt=0.005, idx=1000):
     plt.title(f"Local prediction window (0–{len(y_true)*dt:.2f}s)")
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}_prediction_window_{idx}.png")
 
 
 def plot_full_trajectory(
@@ -166,6 +166,7 @@ def plot_full_trajectory(
     Y,
     metadata,
     device,
+    save_path="graphs",
     rollout_idx=0,
     osc_idx=0,
 ):
@@ -205,10 +206,10 @@ def plot_full_trajectory(
     plt.title(f"Full trajectory | rollout={rollout_idx}, osc={osc_idx}")
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}_full_trajectory_{rollout_idx}_{osc_idx}.png")
 
 
-def plot_dataset_samples(Y, metadata, start_idx=0, num_points=2000):
+def plot_dataset_samples(Y, metadata, start_idx=0, num_points=2000, save_path="graphs"):
     Y = Y.cpu()
 
     segment = Y[start_idx:start_idx + num_points]
@@ -224,4 +225,4 @@ def plot_dataset_samples(Y, metadata, start_idx=0, num_points=2000):
     plt.xlabel("Time (seconds)")
     plt.ylabel("x")
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_path}_dataset_samples.png")
