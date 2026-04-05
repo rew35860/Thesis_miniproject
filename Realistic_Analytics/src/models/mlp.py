@@ -30,6 +30,10 @@ class MLP(nn.Module):
 
 class MLPReferenceGenerator:
     def __init__(self, model, condition_mode, predict_mode, horizon, dt, device):
+        '''condition_mode: "phase_freq", "state_phase_freq", "phase_trig_freq", "state_phase_trig_freq"
+           predict_mode:    True, model predicts both x and v
+                            False, model predicts only x and we derive v from x'''
+        
         self.model = model
         self.condition_mode = condition_mode
         self.predict_mode = predict_mode
@@ -52,6 +56,7 @@ class MLPReferenceGenerator:
     @torch.no_grad()
     def predict_future(self, x, v, phi, phi_dot):
         inp = self.build_input(x, v, phi, phi_dot)
+
         pred = self.model(inp).squeeze(0)
         return pred
 

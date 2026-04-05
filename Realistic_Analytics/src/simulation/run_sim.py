@@ -33,7 +33,8 @@ def main():
 
     x, v, phi, omega = initialize_states(cfg)
 
-    model_path = "checkpoints/mlp_state_phase_freq.pt"
+    # mode: sinusoidal, or mlp
+    model_path = "models/xv/mlp_phase_trig_freq.pt"
     oscillators, ref_gen, ctrl, sync_ctrl, omega = initialize_modules(cfg, "mlp", model_path, omega)
     
     results = run_simulation(cfg, oscillators, ref_gen, ctrl, sync_ctrl,
