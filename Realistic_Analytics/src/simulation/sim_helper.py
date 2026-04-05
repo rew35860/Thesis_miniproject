@@ -45,7 +45,7 @@ def build_reference_generator(model, model_path, cfg=None):
     elif model == "mlp":
         model, checkpoint = load_model(model_path, device=cfg.device)
 
-        horizon = checkpoint["horizon"]
+        horizon = checkpoint["metadata"]["horizon"]
         # or checkpoint["output_dim"] only if x_only and output_dim == horizon
 
         return MLPReferenceGenerator(
@@ -96,7 +96,7 @@ def run_simulation(cfg, oscillators, reference_generator,
                 i=i, phi=phi, omega_i=omega[i]
             )
 
-            x_ref_i, v_ref_i, pred  = reference_generator.get_reference(
+            x_ref_i, v_ref_i, x_pred, v_pred = reference_generator.get_reference(
                 x=x[i], v=v[i], phi=phi[i], phi_dot=phi_dot_i
             )
 
