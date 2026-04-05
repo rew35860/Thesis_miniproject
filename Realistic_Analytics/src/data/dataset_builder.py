@@ -90,7 +90,7 @@ class TrajectoryWindowDataset(Dataset):
 
                 if self.predict_velocity:
                     v_future = v[t + 1:t + 1 + horizon, i]  # [H]
-                    y = torch.stack([x_future, v_future], dim=-1)  # [H, 2]
+                    y = torch.cat([x_future, v_future], dim=0)  # [2H]
                 else:
                     y = x_future.unsqueeze(-1)  # [H, 1]
 
