@@ -92,9 +92,10 @@ def run_simulation(cfg, oscillators, reference_generator,
         omega_tilde_all = torch.zeros_like(x)
 
         for i in range(cfg.N):
-            phi_dot_i = sync_controller.corrected_frequency(
-                i=i, phi=phi, omega_i=omega[i]
-            )
+            phi_dot_i = omega[i]
+            # sync_controller.corrected_frequency(
+            #     i=i, phi=phi, omega_i=omega[i]
+            # )
 
             x_ref_i, v_ref_i, x_pred, v_pred = reference_generator.get_reference(
                 x=x[i], v=v[i], phi=phi[i], phi_dot=phi_dot_i
