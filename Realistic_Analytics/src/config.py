@@ -28,8 +28,30 @@ class MLPConfig:
     weight_decay: float = 1e-6
 
 
+@dataclass
+class DiffusionConfig:
+    # === shared training params ===
+    batch_size: int = 128
+    hidden_dim: int = 256
+    num_layers: int = 4
+    lr: float = 1e-3
+    epochs: int = 100
+    weight_decay: float = 1e-6
+
+    # === diffusion-specific ===
+    num_diffusion_steps: int = 100
+    time_dim: int = 64
+
+    # === optional (good to include) ===
+    beta_schedule: str = "linear"   # or "cosine"
+    clip_denoised: bool = True
+
+
 def get_config():
     return Config()
 
 def get_mlp_config():
     return MLPConfig()
+
+def get_diffusion_config():
+    return DiffusionConfig()    

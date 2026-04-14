@@ -15,6 +15,10 @@ def initialize_states(cfg, seed=0):
     phi = torch.rand(cfg.N) * 2 * torch.pi
     omega = torch.ones(cfg.N) * (2.0 * torch.pi)
 
+    # training data generation: randomize frequencies a bit more to get more diverse data
+    # omega_scalar = torch.empty(1).uniform_(1.5 * torch.pi, 2.5 * torch.pi).item()
+    # omega = torch.ones(cfg.N) * omega_scalar
+
     return x, v, phi, omega
 
 
@@ -92,10 +96,11 @@ def run_simulation(cfg, oscillators, reference_generator,
         omega_tilde_all = torch.zeros_like(x)
 
         for i in range(cfg.N):
-            phi_dot_i = omega[i]
-            # sync_controller.corrected_frequency(
-            #     i=i, phi=phi, omega_i=omega[i]
-            # )
+            # phi_dot_i = omega[i]
+            
+            phi_dot_i = sync_controller.corrected_frequency(
+                i=i, phi=phi, omega_i=omega[i]
+            )
 
             x_ref_i, v_ref_i, x_pred, v_pred = reference_generator.get_reference(
                 x=x[i], v=v[i], phi=phi[i], phi_dot=phi_dot_i

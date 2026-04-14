@@ -51,7 +51,7 @@ def decode_prediction(pred, predict_mode, horizon, dt, device):
 
     else:
         x_pred = pred[:horizon]
-        v_pred = pred[horizon:]
+        v_pred = pred[horizon:] 
 
         x_ref = x_pred[0]
         v_ref = v_pred[0]

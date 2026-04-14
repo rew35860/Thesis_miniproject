@@ -1,18 +1,15 @@
 import torch
 from pathlib import Path
-from torch.utils.data import TensorDataset, DataLoader, random_split
+from torch.utils.data import TensorDataset, DataLoader
 
 
 def dataset_to_tensors(dataset):
-    """
-    Convert a dataset into two tensors: X and Y.
-    """
+    """Convert a dataset into two tensors: X and Y."""
     if hasattr(dataset, "inputs") and hasattr(dataset, "targets"):
         X = dataset.inputs
         Y = dataset.targets
     else:
-        xs = []
-        ys = []
+        xs, ys = [], []
         for x, y in dataset:
             xs.append(x)
             ys.append(y)
@@ -28,11 +25,7 @@ def save_dataset_to_pt(dataset, path, metadata=None):
 
     X, Y = dataset_to_tensors(dataset)
 
-    payload = {
-        "inputs": X,
-        "targets": Y,
-    }
-
+    payload = {"inputs": X, "targets": Y}
     if metadata is not None:
         payload["metadata"] = metadata
 
@@ -63,13 +56,40 @@ def load_dataset_from_pt(path, return_metadata=False, device="cpu"):
 def load_tensor_dataset(path, return_metadata=False, device="cpu"):
     if return_metadata:
         X, Y, metadata = load_dataset_from_pt(path, return_metadata=True, device=device)
-        dataset = TensorDataset(X, Y)
-        return dataset, X, Y, metadata
+        return TensorDataset(X, Y), X, Y, metadata
 
     X, Y = load_dataset_from_pt(path, return_metadata=False, device=device)
-    dataset = TensorDataset(X, Y)
-    return dataset, X, Y
+    return TensorDataset(X, Y), X, Y
 
+
+# ── Normalization ────────────────────────────────────────────────────────────
+
+def compute_norm_stats(X, Y):
+    """
+    Compute per-feature mean and std from tensors X and Y.
+    Should be called on the training split only to avoid data leakage.
+    """
+    return {
+        "mean_X": X.mean(0),
+        "std_X":  X.std(0) + 1e-8,
+        "mean_Y": Y.mean(0),
+        "std_Y":  Y.std(0) + 1e-8,
+    }
+
+
+def apply_normalization(X, Y, stats):
+    """Normalize X and Y using precomputed stats."""
+    X_norm = (X - stats["mean_X"]) / stats["std_X"]
+    Y_norm = (Y - stats["mean_Y"]) / stats["std_Y"]
+    return X_norm, Y_norm
+
+
+def denormalize_Y(Y_norm, stats):
+    """Invert normalization on model outputs for evaluation / inference."""
+    return Y_norm * stats["std_Y"] + stats["mean_Y"]
+
+
+# ── Dataloaders ──────────────────────────────────────────────────────────────
 
 def make_dataloaders(
     dataset_path,
@@ -81,45 +101,50 @@ def make_dataloaders(
     device="cpu",
 ):
     """
-    Load dataset from disk, split into train/val/test,
-    and return DataLoaders.
+    Load a dataset, split into train/val/test, normalize using train-split
+    statistics, and return DataLoaders together with the norm stats.
 
-    Returns:
-        dataset, X, Y, train_loader, val_loader, test_loader
-    or
-        dataset, X, Y, metadata, train_loader, val_loader, test_loader
+    Returns (return_metadata=True):
+        X, Y, metadata, norm_stats, train_loader, val_loader, test_loader
+
+    Returns (return_metadata=False):
+        X, Y, norm_stats, train_loader, val_loader, test_loader
+
+    X and Y are the full normalized tensors (useful for quick inspection).
+    norm_stats contains mean_X, std_X, mean_Y, std_Y for denormalization.
     """
     if return_metadata:
-        dataset, X, Y, metadata = load_tensor_dataset(
-            dataset_path,
-            return_metadata=True,
-            device=device
-        )
+        _, X, Y, metadata = load_tensor_dataset(dataset_path, return_metadata=True, device=device)
     else:
-        dataset, X, Y = load_tensor_dataset(
-            dataset_path,
-            return_metadata=False,
-            device=device
-
-        )
+        _, X, Y = load_tensor_dataset(dataset_path, device=device)
         metadata = None
 
-    n_total = len(dataset)
+    # ── Split indices ────────────────────────────────────────────────────────
+    n_total = len(X)
     n_train = int(train_ratio * n_total)
-    n_val = int(val_ratio * n_total)
-    n_test = n_total - n_train - n_val
+    n_val   = int(val_ratio   * n_total)
 
-    train_ds, val_ds, test_ds = random_split(
-        dataset,
-        [n_train, n_val, n_test],
-        generator=torch.Generator().manual_seed(seed),
-    )
+    generator = torch.Generator().manual_seed(seed)
+    perm      = torch.randperm(n_total, generator=generator)
+    train_idx = perm[:n_train]
+    val_idx   = perm[n_train : n_train + n_val]
+    test_idx  = perm[n_train + n_val :]
 
+    # ── Normalization (stats from train split only) ──────────────────────────
+    norm_stats    = compute_norm_stats(X[train_idx], Y[train_idx])
+    X_norm, Y_norm = apply_normalization(X, Y, norm_stats)
+
+    # ── Build split datasets ─────────────────────────────────────────────────
+    train_ds = TensorDataset(X_norm[train_idx], Y_norm[train_idx])
+    val_ds   = TensorDataset(X_norm[val_idx],   Y_norm[val_idx])
+    test_ds  = TensorDataset(X_norm[test_idx],  Y_norm[test_idx])
+
+    # ── DataLoaders ──────────────────────────────────────────────────────────
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False)
+    test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False)
 
     if return_metadata:
-        return dataset, X, Y, metadata, train_loader, val_loader, test_loader
+        return X_norm, Y_norm, metadata, norm_stats, train_loader, val_loader, test_loader
 
-    return dataset, X, Y, train_loader, val_loader, test_loader
+    return X_norm, Y_norm, norm_stats, train_loader, val_loader, test_loader

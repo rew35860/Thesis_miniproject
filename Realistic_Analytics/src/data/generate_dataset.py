@@ -64,20 +64,20 @@ def build_dataset_from_many_rollouts(
 if __name__ == "__main__":
     cfg = get_config()
 
-    name1 = "phase_trig_freq"
-    name2 = "state_phase_trig_freq"
+    name1 = "phase_freq"
+    name2 = "state_phase_Trig_freq"
     velocity = True
     sin_cos = True
 
-    # 1) phase + frequency only
-    ds_phase = build_dataset_from_many_rollouts(
-        cfg,
-        num_rollouts=50,
-        horizon=20,
-        condition_mode="phase_freq",
-        predict_velocity=velocity,
-        use_sin_cos_phase=sin_cos,
-    )
+    # # 1) phase + frequency only
+    # ds_phase = build_dataset_from_many_rollouts(
+    #     cfg,
+    #     num_rollouts=50,
+    #     horizon=20,
+    #     condition_mode="phase_freq",
+    #     predict_velocity=velocity,
+    #     use_sin_cos_phase=sin_cos,
+    # )
 
     # 2) state + phase + frequency
     ds_state = build_dataset_from_many_rollouts(
@@ -91,21 +91,21 @@ if __name__ == "__main__":
 
     path_data_dir = "data"
 
-    save_dataset_to_pt(
-        ds_phase,
-        f"{path_data_dir}/dataset_{name1}.pt",
-        metadata={
-            "T": cfg.T,
-            "dt": cfg.dt,
-            "N": cfg.N,
-            "horizon": 20,
-            "condition_mode": name1,
-            "predict_velocity": velocity,
-            "flatten_target": True,
-            "use_sin_cos_phase": sin_cos,
-            "num_rollouts": 50,
-        },
-    )
+    # save_dataset_to_pt(
+    #     ds_phase,
+    #     f"{path_data_dir}/dataset_{name1}.pt",
+    #     metadata={
+    #         "T": cfg.T,
+    #         "dt": cfg.dt,
+    #         "N": cfg.N,
+    #         "horizon": 20,
+    #         "condition_mode": name1,
+    #         "predict_velocity": velocity,
+    #         "flatten_target": True,
+    #         "use_sin_cos_phase": sin_cos,
+    #         "num_rollouts": 50,
+    #     },
+    # )
 
     save_dataset_to_pt(
         ds_state,

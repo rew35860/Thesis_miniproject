@@ -21,8 +21,7 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-    def compute_loss(self, batch):
-        x, y = batch
+    def compute_loss(self, x, y):
         pred = self.forward(x)
         loss = nn.functional.mse_loss(pred, y)
         return loss, {"mse": loss.item()}

@@ -4,8 +4,9 @@ from tqdm import tqdm
 
 from src.utils.plotting import plot_full_trajectory, plot_losses, plot_predictions, plot_dataset_samples
 from src.utils.dataset_io import make_dataloaders
+from src.models.diffusion import ConditionalDDPM, load_diffusion_model
 from src.models.mlp import MLP, load_model
-from src.config import get_mlp_config
+from src.config import get_mlp_config, get_diffusion_config
 
 
 def evaluate(model, loader, device):
@@ -18,7 +19,7 @@ def evaluate(model, loader, device):
             xb = xb.to(device)
             yb = yb.to(device)
 
-            loss, metrics = model.compute_loss((xb, yb))
+            loss, metrics = model.compute_loss(xb, yb)
 
             batch_size = xb.shape[0]
             total_loss += loss.item() * batch_size
@@ -27,10 +28,36 @@ def evaluate(model, loader, device):
     return total_loss / total_count
 
 
+def get_model(model_mode, input_dim, output_dim, train_cfg, device):
+    if model_mode == "mlp": 
+        model = MLP(
+            input_dim=input_dim,
+            output_dim=output_dim,
+            hidden_dim=train_cfg.hidden_dim,
+            num_layers=train_cfg.num_layers,
+        ).to(device)
+        
+    elif model_mode == "diffusion":
+        model = ConditionalDDPM(
+            cond_dim=input_dim,
+            target_dim=output_dim,
+            num_diffusion_steps=train_cfg.num_diffusion_steps,
+            hidden_dim=train_cfg.hidden_dim,
+            time_dim=train_cfg.time_dim,
+            num_layers=train_cfg.num_layers,
+        ).to(device)
+
+    else:
+        raise ValueError(f"Unknown model mode: {model_mode}")
+    
+    return model
+
+
 def train_model(
     dataset_path,
     train_cfg,
     device,
+    model_mode = "mlp",
     model_save_path="mlp_model.pt",
 ):
     
@@ -43,18 +70,14 @@ def train_model(
     input_dim = X.shape[1]
     output_dim = Y.shape[1]
 
+    print("Model mode:", model_mode)
     print("Dataset:", dataset_path)
     print("Input dim:", input_dim)
     print("Output dim:", output_dim)
     print("Num samples:", len(dataset))
     print("Metadata:", metadata)
 
-    model = MLP(
-        input_dim=input_dim,
-        output_dim=output_dim,
-        hidden_dim=train_cfg.hidden_dim,
-        num_layers=train_cfg.num_layers,
-    ).to(device)
+    model = get_model(model_mode, input_dim, output_dim, train_cfg, device)
 
     optimizer = torch.optim.Adam(
         model.parameters(),
@@ -81,7 +104,7 @@ def train_model(
             yb = yb.to(device)
 
             optimizer.zero_grad()
-            loss, metrics = model.compute_loss((xb, yb))
+            loss, metrics = model.compute_loss(xb, yb)
             loss.backward()
             optimizer.step()
 
@@ -98,6 +121,7 @@ def train_model(
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_state = {
+                "model_mode": model_mode,
                 "model_state_dict": model.state_dict(),
                 "input_dim": input_dim,
                 "output_dim": output_dim,
@@ -106,6 +130,10 @@ def train_model(
                 "dataset_path": str(dataset_path),
                 "metadata": metadata,
             }
+
+            if model_mode == "diffusion":
+                best_state["num_diffusion_steps"] = train_cfg.num_diffusion_steps
+                best_state["time_dim"] = train_cfg.time_dim
 
         if epoch % 10 == 0 or epoch == 1:
             print(
@@ -129,26 +157,32 @@ def train_model(
 
 
 if __name__ == "__main__":
-    # Choose one:
-    dataset_path = "./data/xv/dataset_phase_freq.pt"
-    model_save_path = "./models/mlp_phase_freq.pt"
-
-    # dataset_path = "./data/dataset_state_phase_freq.pt"
-    # model_save_path = "./models/mlp_state_phase_freq.pt"
+    model_mode = "mlp"
+    config = get_mlp_config() if model_mode == "mlp" else get_diffusion_config()
+    dataset_path = "./data/omega_random/dataset_state_phase_freq.pt"
+    model_save_path = f"./models/{model_mode}_state_phase_freq.pt"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-        
     model, X, Y, metadata, train_losses, val_losses, device = train_model(
         dataset_path=dataset_path,
         model_save_path=model_save_path,
-        train_cfg=get_mlp_config(),
+        train_cfg=config,
+        model_mode=model_mode,
         device=device,
     )
 
-    path_save = "./graphs/mlp_phase_freq"
-    plot_losses(train_losses, val_losses, save_path=f"{path_save}")
-    plot_predictions(model, X, Y, device, metadata["predict_velocity"], metadata["horizon"], save_path=f"{path_save}")
-    plot_full_trajectory(model, X, Y, metadata, device, save_path=f"{path_save}")
+    # model, checkpoint = load_diffusion_model(model_save_path, device)
+    # model, checkpoint = load_model(model_save_path, device)
+
+    path_save = f"./graphs/"
+    # dataset, X, Y, metadata, train_loader, val_loader, test_loader = make_dataloaders(
+    #     dataset_path=dataset_path,
+    #     batch_size=config.batch_size,
+    #     return_metadata=True,
+    # )
+    plot_losses(train_losses, val_losses, model_mode, save_path=path_save)
+    plot_predictions(model, X, Y, device, model_mode, metadata["predict_velocity"], metadata["horizon"], save_path=path_save)
+    plot_full_trajectory(model, X, Y, metadata, device, model_mode, save_path=path_save)
     # plot_dataset_samples(Y, metadata, num_points=2000, save_path=f"{path_save}")
