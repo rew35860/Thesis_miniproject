@@ -38,4 +38,4 @@ class BaseReferenceGenerator(ABC):
         else:
             v_ref = torch.tensor(0.0, device=self.device)
 
-        return x_ref, v_ref, pred
+        return x_ref, v_ref, pred, None

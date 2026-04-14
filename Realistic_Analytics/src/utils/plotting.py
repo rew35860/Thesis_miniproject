@@ -124,44 +124,16 @@ def plot_control_input(time, u_hist, save_path="graphs"):
 
 
 # Plotting For Training
-def plot_losses(train_losses, val_losses, save_path="graphs"):
+def plot_losses(train_losses, val_losses, model_mode, save_path="graphs"):
     plt.figure(figsize=(7, 4))
     plt.plot(train_losses, label="train")
     plt.plot(val_losses, label="val")
     plt.xlabel("Epoch")
     plt.ylabel("MSE loss")
-    plt.title("MLP training loss")
+    plt.title(f"{model_mode.capitalize()} training loss")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"{save_path}_training_loss.png")
-
-
-def plot_predictions(model, X, Y, device, predict_velocity=False, horizon=20, dt=0.005, idx=1000, save_path="graphs"):
-    model.eval()
-
-    with torch.no_grad():
-        x = X[idx].unsqueeze(0).to(device)
-        y_true = Y[idx].cpu().numpy()
-        y_pred = model(x).squeeze(0).cpu().numpy()
-
-    if predict_velocity: 
-        y_true = y_true[:horizon]
-        y_pred = y_pred[:horizon]
-        
-    t_future = torch.arange(len(y_true)) * dt
-
-    plt.figure(figsize=(8, 4))
-
-    # plot local prediction window
-    plt.plot(t_future.numpy(), y_true, label="ground truth")
-    plt.plot(t_future.numpy(), y_pred, label="prediction")
-
-    plt.xlabel("Time (s)")
-    plt.ylabel("Position")
-    plt.title(f"Local prediction window (0–{len(y_true)*dt:.2f}s)")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(f"{save_path}_prediction_window_{idx}.png")
+    plt.savefig(f"{save_path}_{model_mode}_training_loss.png")
 
 
 def plot_full_trajectory(
@@ -170,6 +142,7 @@ def plot_full_trajectory(
     Y,
     metadata,
     device,
+    model_mode="mlp",
     save_path="graphs",
     rollout_idx=0,
     osc_idx=0,
@@ -191,12 +164,19 @@ def plot_full_trajectory(
         for local_t in range(samples_per_osc):
             idx = start_idx + local_t
 
-            x = X[idx].unsqueeze(0).to(device)
-            y_true = Y[idx][0].item()
-            y_pred = model(x).squeeze(0)[0].item()
+            cond = X[idx].unsqueeze(0).to(device)
+            y_true = Y[idx].cpu()
 
-            trues.append(y_true)
-            preds.append(y_pred)
+            if model_mode == "mlp":
+                y_pred = model(cond).squeeze(0).cpu()
+            elif model_mode == "diffusion":
+                y_pred = model.sample(cond).squeeze(0).cpu()
+            else:
+                raise ValueError(f"Unknown model_mode: {model_mode}")
+
+            # first predicted future position x_{t+1}
+            trues.append(y_true[0].item())
+            preds.append(y_pred[0].item())
 
     preds = torch.tensor(preds)
     trues = torch.tensor(trues)
@@ -207,10 +187,11 @@ def plot_full_trajectory(
     plt.plot(t_axis.numpy(), preds.numpy(), label="prediction")
     plt.xlabel("Time (s)")
     plt.ylabel("Position")
-    plt.title(f"Full trajectory | rollout={rollout_idx}, osc={osc_idx}")
+    plt.title(f"{model_mode.upper()} full trajectory | rollout={rollout_idx}, osc={osc_idx}")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"{save_path}_full_trajectory_{rollout_idx}_{osc_idx}.png")
+    plt.savefig(f"{save_path}{model_mode}_full_trajectory_{rollout_idx}_{osc_idx}.png")
+    plt.close()
 
 
 def plot_dataset_samples(Y, metadata, start_idx=0, num_points=2000, save_path="graphs"):
@@ -230,3 +211,69 @@ def plot_dataset_samples(Y, metadata, start_idx=0, num_points=2000, save_path="g
     plt.ylabel("x")
     plt.tight_layout()
     plt.savefig(f"{save_path}_dataset_samples.png")
+
+
+def plot_predictions(
+    model,
+    X,
+    Y,
+    device,
+    model_mode="mlp",
+    predict_velocity=False,
+    horizon=20,
+    dt=0.005,
+    idx=0,
+    save_path="graphs",
+):
+    model.eval()
+
+    with torch.no_grad():
+        cond = X[idx].unsqueeze(0).to(device)
+        y_true = Y[idx].cpu().numpy()
+
+        if model_mode == "mlp":
+            y_pred = model(cond).squeeze(0).cpu().numpy()
+        elif model_mode == "diffusion":
+            y_pred = model.sample(cond).squeeze(0).cpu().numpy()
+        else:
+            raise ValueError(f"Unknown model_mode: {model_mode}")
+
+    # === Always compute x ===
+    x_true = y_true[:horizon]
+    x_pred = y_pred[:horizon]
+
+    if predict_velocity:
+        v_true = y_true[horizon:]
+        v_pred = y_pred[horizon:]
+
+    t_future = torch.arange(len(x_true)) * dt
+
+    # === Always plot x ===
+    plt.figure(figsize=(8, 4))
+    plt.plot(t_future.numpy(), x_true, label="x true")
+    plt.plot(t_future.numpy(), x_pred, label="x pred")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Position")
+    plt.title(f"{model_mode.upper()} position prediction")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"{save_path}{model_mode}_x_prediction_window_{idx}.png")
+    plt.close()
+
+    # === Only plot v if available ===
+    if predict_velocity:
+        v_true = y_true[horizon:]
+        v_pred = y_pred[horizon:]
+
+        t_future = torch.arange(horizon) * dt
+
+        plt.figure(figsize=(8, 4))
+        plt.plot(t_future.numpy(), v_true, label="v true")
+        plt.plot(t_future.numpy(), v_pred, label="v pred")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Velocity")
+        plt.title(f"{model_mode.upper()} velocity prediction")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(f"{save_path}{model_mode}_v_prediction_window_{idx}.png")
+        plt.close()
