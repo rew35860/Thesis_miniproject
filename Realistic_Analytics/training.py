@@ -61,7 +61,7 @@ def train_model(
     model_save_path="mlp_model.pt",
 ):
     
-    dataset, X, Y, metadata, train_loader, val_loader, test_loader = make_dataloaders(
+    _, X, Y, metadata, norm_stats, train_loader, val_loader, test_loader = make_dataloaders(
         dataset_path=dataset_path,
         batch_size=train_cfg.batch_size,
         return_metadata=True,
@@ -74,7 +74,7 @@ def train_model(
     print("Dataset:", dataset_path)
     print("Input dim:", input_dim)
     print("Output dim:", output_dim)
-    print("Num samples:", len(dataset))
+    print("Num samples:", len(X))
     print("Metadata:", metadata)
 
     model = get_model(model_mode, input_dim, output_dim, train_cfg, device)
@@ -129,6 +129,7 @@ def train_model(
                 "num_layers": train_cfg.num_layers,
                 "dataset_path": str(dataset_path),
                 "metadata": metadata,
+                "norm_stats": {k: v.cpu() for k, v in norm_stats.items()},
             }
 
             if model_mode == "diffusion":
@@ -153,19 +154,19 @@ def train_model(
     test_loss = evaluate(model, test_loader, device)
     print(f"Test loss: {test_loss:.6f}")
 
-    return model, X, Y, metadata, train_losses, val_losses, device
+    return model, X, Y, metadata, norm_stats, train_losses, val_losses, device
 
 
 if __name__ == "__main__":
     model_mode = "mlp"
     config = get_mlp_config() if model_mode == "mlp" else get_diffusion_config()
-    dataset_path = "./data/omega_random/dataset_state_phase_freq.pt"
-    model_save_path = f"./models/{model_mode}_state_phase_freq.pt"
+    dataset_path = "./data/omega_random/dataset_state_freq.pt"
+    model_save_path = f"./models/{model_mode}_state_freq.pt"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    model, X, Y, metadata, train_losses, val_losses, device = train_model(
+    model, X, Y, metadata, norm_stats, train_losses, val_losses, device = train_model(
         dataset_path=dataset_path,
         model_save_path=model_save_path,
         train_cfg=config,
@@ -177,12 +178,7 @@ if __name__ == "__main__":
     # model, checkpoint = load_model(model_save_path, device)
 
     path_save = f"./graphs/"
-    # dataset, X, Y, metadata, train_loader, val_loader, test_loader = make_dataloaders(
-    #     dataset_path=dataset_path,
-    #     batch_size=config.batch_size,
-    #     return_metadata=True,
-    # )
     plot_losses(train_losses, val_losses, model_mode, save_path=path_save)
-    plot_predictions(model, X, Y, device, model_mode, metadata["predict_velocity"], metadata["horizon"], save_path=path_save)
-    plot_full_trajectory(model, X, Y, metadata, device, model_mode, save_path=path_save)
-    # plot_dataset_samples(Y, metadata, num_points=2000, save_path=f"{path_save}")
+    plot_predictions(model, X, Y, device, model_mode, metadata["predict_velocity"], metadata["horizon"], norm_stats=norm_stats, save_path=path_save)
+    plot_full_trajectory(model, X, Y, metadata, device, model_mode, norm_stats=norm_stats, save_path=path_save)
+    plot_dataset_samples(Y, metadata, num_points=2000, norm_stats=norm_stats, save_path=f"{path_save}")

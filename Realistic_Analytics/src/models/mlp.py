@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from src.models.base_reference_generator import BaseReferenceGenerator
 from src.utils.model_io import decode_prediction, build_condition
+from src.utils.dataset_io import normalize_X, denormalize_Y
 
 
 class MLP(nn.Module):
@@ -28,35 +29,39 @@ class MLP(nn.Module):
 
 
 class MLPReferenceGenerator:
-    def __init__(self, model, condition_mode, predict_mode, horizon, dt, device):
-        '''condition_mode: "phase_freq", "state_phase_freq", "phase_trig_freq", "state_phase_trig_freq"
+    def __init__(self, model, condition_mode, predict_mode, horizon, dt, device, norm_stats=None):
+        '''condition_mode: "phase_freq", "state_phase_freq", "phase_trig_freq", "state_phase_trig_freq", "state_freq"
            predict_mode:    True, model predicts both x and v
-                            False, model predicts only x and we derive v from x'''
-        
+                            False, model predicts only x and we derive v from x
+           norm_stats:      dict with mean_X, std_X, mean_Y, std_Y — required when
+                            the model was trained on normalized data'''
+
         self.model = model
         self.condition_mode = condition_mode
         self.predict_mode = predict_mode
         self.horizon = horizon
         self.dt = dt
         self.device = device
+        self.norm_stats = norm_stats
 
         self.model.eval()
 
     def build_input(self, x, v, phi, phi_dot):
-        return build_condition(
-            x=x,
-            v=v,
-            phi=phi,
-            phi_dot=phi_dot,
+        inp = build_condition(
+            x=x, v=v, phi=phi, phi_dot=phi_dot,
             mode=self.condition_mode,
             device=self.device,
         )
+        if self.norm_stats is not None:
+            inp = normalize_X(inp, self.norm_stats)
+        return inp
 
     @torch.no_grad()
     def predict_future(self, x, v, phi, phi_dot):
         inp = self.build_input(x, v, phi, phi_dot)
-
         pred = self.model(inp).squeeze(0)
+        if self.norm_stats is not None:
+            pred = denormalize_Y(pred, self.norm_stats)
         return pred
 
     @torch.no_grad()
@@ -86,5 +91,11 @@ def load_model(model_path, device):
 
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
+
+    # Move norm_stats tensors to the target device if present
+    if "norm_stats" in checkpoint:
+        checkpoint["norm_stats"] = {
+            k: v.to(device) for k, v in checkpoint["norm_stats"].items()
+        }
 
     return model, checkpoint

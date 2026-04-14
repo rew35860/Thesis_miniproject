@@ -50,7 +50,6 @@ def build_reference_generator(model, model_path, cfg=None):
         model, checkpoint = load_model(model_path, device=cfg.device)
 
         horizon = checkpoint["metadata"]["horizon"]
-        # or checkpoint["output_dim"] only if x_only and output_dim == horizon
 
         return MLPReferenceGenerator(
             model=model,
@@ -59,6 +58,7 @@ def build_reference_generator(model, model_path, cfg=None):
             horizon=horizon,
             dt=cfg.dt,
             device=cfg.device,
+            norm_stats=checkpoint.get("norm_stats", None),
         )
 
     # elif cfg.reference_type == "diffusion":

@@ -10,6 +10,8 @@ def get_input_dim(condition_mode):
         return 3
     elif condition_mode == "state_phase_trig_freq":
         return 5
+    elif condition_mode == "state_freq":
+        return 3
     else:
         raise ValueError(f"Unknown condition mode: {condition_mode}")
 
@@ -30,6 +32,8 @@ def build_condition(x, v, phi, phi_dot, mode, device):
         parts = [torch.sin(phi), torch.cos(phi), phi_dot]
     elif mode == "state_phase_trig_freq":
         parts = [x, v, torch.sin(phi), torch.cos(phi), phi_dot]
+    elif mode == "state_freq":
+        parts = [x, v, phi_dot]
     else:
         raise ValueError(f"Unknown condition mode: {mode}")
 

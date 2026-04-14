@@ -6,9 +6,10 @@ class TrajectoryWindowDataset(Dataset):
     """
     Builds supervised samples from simulation results.
 
-    Two condition modes:
+    Three condition modes:
     1) "phase_freq"      -> input = [phi_t, omega_tilde_t]
     2) "state_phase_freq"-> input = [x_t, v_t, phi_t, omega_tilde_t]
+    3) "state_freq"      -> input = [x_t, v_t, omega_tilde_t]  (no phase)
 
     Target:
         future positions over horizon H:
@@ -25,6 +26,7 @@ class TrajectoryWindowDataset(Dataset):
         predict_velocity=False,
         flatten_target=True,
         use_sin_cos_phase=False,
+        state_noise_fraction=0.0,
     ):
         super().__init__()
 
@@ -33,6 +35,7 @@ class TrajectoryWindowDataset(Dataset):
         self.predict_velocity = predict_velocity
         self.flatten_target = flatten_target
         self.use_sin_cos_phase = use_sin_cos_phase
+        self.state_noise_fraction = state_noise_fraction
 
         x = results["x"]                  # [T, N]
         v = results["v"]                  # [T, N]
@@ -51,6 +54,14 @@ class TrajectoryWindowDataset(Dataset):
                 v_t = v[t, i]
                 phi_t = phi[t, i]
                 omega_tilde_t = omega_tilde[t, i]
+
+                # Multiplicative noise: σ = fraction * |value|, so perturbation
+                # scales with each variable's magnitude. A small absolute floor
+                # (1e-3) prevents zero noise at zero crossings.
+                # Targets remain clean — only the input is perturbed.
+                if self.state_noise_fraction > 0.0:
+                    x_t = x_t + torch.randn(()) * (self.state_noise_fraction * (x_t.abs() + 1e-3))
+                    v_t = v_t + torch.randn(()) * (self.state_noise_fraction * (v_t.abs() + 1e-3))
 
                 if self.condition_mode == "phase_freq":
                     if use_sin_cos_phase:
@@ -81,6 +92,15 @@ class TrajectoryWindowDataset(Dataset):
                             phi_t,
                             omega_tilde_t
                         ], dtype=torch.float32)
+                elif self.condition_mode == "state_freq":
+                    # No phase — forces the model to reason from state only.
+                    # Prevents shortcut learning through the sinusoidal reference.
+                    inp = torch.tensor([
+                        x_t,
+                        v_t,
+                        omega_tilde_t,
+                    ], dtype=torch.float32)
+
                 else:
                     raise ValueError(
                         f"Unknown condition_mode: {self.condition_mode}"

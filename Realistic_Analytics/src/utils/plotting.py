@@ -1,5 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
+from src.utils.dataset_io import denormalize_Y
 
 
 def plot_reference_trajectories(time, x_ref_hist, save_path="graphs"):
@@ -143,6 +144,7 @@ def plot_full_trajectory(
     metadata,
     device,
     model_mode="mlp",
+    norm_stats=None,
     save_path="graphs",
     rollout_idx=0,
     osc_idx=0,
@@ -165,18 +167,22 @@ def plot_full_trajectory(
             idx = start_idx + local_t
 
             cond = X[idx].unsqueeze(0).to(device)
-            y_true = Y[idx].cpu()
+            y_true = Y[idx].unsqueeze(0).cpu()
 
             if model_mode == "mlp":
-                y_pred = model(cond).squeeze(0).cpu()
+                y_pred = model(cond).cpu()
             elif model_mode == "diffusion":
-                y_pred = model.sample(cond).squeeze(0).cpu()
+                y_pred = model.sample(cond).cpu()
             else:
                 raise ValueError(f"Unknown model_mode: {model_mode}")
 
+            if norm_stats is not None:
+                y_true = denormalize_Y(y_true, norm_stats)
+                y_pred = denormalize_Y(y_pred, norm_stats)
+
             # first predicted future position x_{t+1}
-            trues.append(y_true[0].item())
-            preds.append(y_pred[0].item())
+            trues.append(y_true.squeeze(0)[0].item())
+            preds.append(y_pred.squeeze(0)[0].item())
 
     preds = torch.tensor(preds)
     trues = torch.tensor(trues)
@@ -194,8 +200,10 @@ def plot_full_trajectory(
     plt.close()
 
 
-def plot_dataset_samples(Y, metadata, start_idx=0, num_points=2000, save_path="graphs"):
+def plot_dataset_samples(Y, metadata, start_idx=0, num_points=2000, norm_stats=None, save_path="graphs"):
     Y = Y.cpu()
+    if norm_stats is not None:
+        Y = denormalize_Y(Y, norm_stats)
 
     segment = Y[start_idx:start_idx + num_points]
     values = segment[:, 0] if segment.ndim > 1 else segment
@@ -223,20 +231,28 @@ def plot_predictions(
     horizon=20,
     dt=0.005,
     idx=0,
+    norm_stats=None,
     save_path="graphs",
 ):
     model.eval()
 
     with torch.no_grad():
         cond = X[idx].unsqueeze(0).to(device)
-        y_true = Y[idx].cpu().numpy()
+        y_true = Y[idx].unsqueeze(0).cpu()
 
         if model_mode == "mlp":
-            y_pred = model(cond).squeeze(0).cpu().numpy()
+            y_pred = model(cond).cpu()
         elif model_mode == "diffusion":
-            y_pred = model.sample(cond).squeeze(0).cpu().numpy()
+            y_pred = model.sample(cond).cpu()
         else:
             raise ValueError(f"Unknown model_mode: {model_mode}")
+
+        if norm_stats is not None:
+            y_true = denormalize_Y(y_true, norm_stats)
+            y_pred = denormalize_Y(y_pred, norm_stats)
+
+        y_true = y_true.squeeze(0).numpy()
+        y_pred = y_pred.squeeze(0).numpy()
 
     # === Always compute x ===
     x_true = y_true[:horizon]

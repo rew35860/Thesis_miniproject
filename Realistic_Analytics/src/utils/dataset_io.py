@@ -84,9 +84,14 @@ def apply_normalization(X, Y, stats):
     return X_norm, Y_norm
 
 
+def normalize_X(x, stats):
+    """Normalize a single input vector (or batch) for inference."""
+    return (x - stats["mean_X"].to(x.device)) / stats["std_X"].to(x.device)
+
+
 def denormalize_Y(Y_norm, stats):
     """Invert normalization on model outputs for evaluation / inference."""
-    return Y_norm * stats["std_Y"] + stats["mean_Y"]
+    return Y_norm * stats["std_Y"].to(Y_norm.device) + stats["mean_Y"].to(Y_norm.device)
 
 
 # ── Dataloaders ──────────────────────────────────────────────────────────────
@@ -105,18 +110,18 @@ def make_dataloaders(
     statistics, and return DataLoaders together with the norm stats.
 
     Returns (return_metadata=True):
-        X, Y, metadata, norm_stats, train_loader, val_loader, test_loader
+        dataset, X, Y, metadata, norm_stats, train_loader, val_loader, test_loader
 
     Returns (return_metadata=False):
-        X, Y, norm_stats, train_loader, val_loader, test_loader
+        dataset, X, Y, norm_stats, train_loader, val_loader, test_loader
 
     X and Y are the full normalized tensors (useful for quick inspection).
     norm_stats contains mean_X, std_X, mean_Y, std_Y for denormalization.
     """
     if return_metadata:
-        _, X, Y, metadata = load_tensor_dataset(dataset_path, return_metadata=True, device=device)
+        dataset, X, Y, metadata = load_tensor_dataset(dataset_path, return_metadata=True, device=device)
     else:
-        _, X, Y = load_tensor_dataset(dataset_path, device=device)
+        dataset, X, Y = load_tensor_dataset(dataset_path, device=device)
         metadata = None
 
     # ── Split indices ────────────────────────────────────────────────────────
@@ -145,6 +150,6 @@ def make_dataloaders(
     test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False)
 
     if return_metadata:
-        return X_norm, Y_norm, metadata, norm_stats, train_loader, val_loader, test_loader
-
-    return X_norm, Y_norm, norm_stats, train_loader, val_loader, test_loader
+        return dataset, X_norm, Y_norm, metadata, norm_stats, train_loader, val_loader, test_loader
+    
+    return dataset, X_norm, Y_norm, norm_stats, train_loader, val_loader, test_loader
