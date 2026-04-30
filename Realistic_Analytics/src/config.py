@@ -15,7 +15,7 @@ class Config:
 
     kp: float = 40.0
     kd: float = 30.0
-    k_sync: float = 0.15
+    k_sync: float = 0.22
 
 
 @dataclass
@@ -47,8 +47,21 @@ class DiffusionConfig:
     clip_denoised: bool = True
 
 
+@dataclass
+class PhaseEstimatorConfig:
+    batch_size: int = 256
+    hidden_dim: int = 64
+    num_layers: int = 3
+    lr: float = 1e-3
+    epochs: int = 100
+    weight_decay: float = 1e-6
+
+
 def get_config():
     return Config()
+
+def get_phase_estimator_config():
+    return PhaseEstimatorConfig()
 
 def get_mlp_config():
     return MLPConfig()

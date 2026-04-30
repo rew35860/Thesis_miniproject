@@ -3,6 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.utils.model_io import build_condition, decode_prediction
+from src.utils.dataset_io import normalize_X, denormalize_Y
+
 
 class SinusoidalTimeEmbedding(nn.Module):
     def __init__(self, dim: int):
@@ -127,6 +130,7 @@ class ConditionalDDPM(nn.Module):
 
     @torch.no_grad()
     def sample(self, cond: torch.Tensor) -> torch.Tensor:
+        """Stochastic DDPM sampler (full T steps)."""
         device = cond.device
         batch_size = cond.shape[0]
 
@@ -144,15 +148,112 @@ class ConditionalDDPM(nn.Module):
             coef1 = 1.0 / torch.sqrt(alpha_t)
             coef2 = (1.0 - alpha_t) / torch.sqrt(1.0 - alpha_bar_t)
 
-            if step > 0:
-                z = torch.randn_like(y)
-            else:
-                z = torch.zeros_like(y)
-
+            z = torch.randn_like(y) if step > 0 else torch.zeros_like(y)
             y = coef1 * (y - coef2 * noise_pred) + torch.sqrt(beta_t) * z
 
         return y
+
+    @torch.no_grad()
+    def ddim_sample(self, cond: torch.Tensor, num_steps: int = 20) -> torch.Tensor:
+        """Deterministic DDIM sampler.
+
+        Uses a sub-sequence of `num_steps` timesteps instead of the full T.
+        σ=0 → completely deterministic: same cond always gives the same output.
+        Much faster than DDPM and eliminates stochastic jitter in the reference.
+
+        Args:
+            cond:      condition tensor  [B, cond_dim]
+            num_steps: number of denoising steps (10-20 is usually sufficient)
+        """
+        device = cond.device
+        batch_size = cond.shape[0]
+
+        # uniform sub-sequence of timesteps τ: T-1, ..., 0
+        step_indices = torch.linspace(
+            self.num_diffusion_steps - 1, 0, num_steps, dtype=torch.long
+        )
+
+        y = torch.randn(batch_size, self.target_dim, device=device)
+
+        for i, step in enumerate(step_indices):
+            step = step.item()
+            t = torch.full((batch_size,), step, device=device, dtype=torch.long)
+
+            alpha_bar_t = self.alpha_bars[step]
+            noise_pred = self.denoiser(y, t, cond)
+
+            # predict x_0 from x_t and ε_θ
+            x0_pred = (y - torch.sqrt(1.0 - alpha_bar_t) * noise_pred) / torch.sqrt(alpha_bar_t)
+
+            if i < num_steps - 1:
+                step_prev = step_indices[i + 1].item()
+                alpha_bar_prev = self.alpha_bars[step_prev]
+            else:
+                alpha_bar_prev = torch.ones(1, device=device)  # ᾱ_0 ≈ 1 → y = x0
+
+            # DDIM update (σ=0): interpolate toward x0 along the direction of ε_θ
+            y = torch.sqrt(alpha_bar_prev) * x0_pred + torch.sqrt(1.0 - alpha_bar_prev) * noise_pred
+
+        return y
     
+
+class DiffusionReferenceGenerator:
+    def __init__(self, model, condition_mode, predict_mode, horizon, dt, device,
+                 norm_stats=None, num_samples=5):
+        """Wraps ConditionalDDPM with the same interface as MLPReferenceGenerator.
+
+        condition_mode: "state_freq", "phase_freq", etc.
+        predict_mode:   True if model predicts both x and v, False for x only.
+        norm_stats:     dict with mean_X, std_X, mean_Y, std_Y from training.
+        num_samples:    number of DDPM samples to average per call (default 5).
+                        Averaging approximates E[y|condition], which is stable
+                        and close to ground truth even though each sample is noisy.
+        """
+        self.model = model
+        self.condition_mode = condition_mode
+        self.predict_mode = predict_mode
+        self.horizon = horizon
+        self.dt = dt
+        self.device = device
+        self.norm_stats = norm_stats
+        self.num_samples = num_samples
+
+        self.model.eval()
+
+    def build_input(self, x, v, phi, phi_dot):
+        inp = build_condition(
+            x=x, v=v, phi=phi, phi_dot=phi_dot,
+            mode=self.condition_mode,
+            device=self.device,
+        )
+        if self.norm_stats is not None:
+            inp = normalize_X(inp, self.norm_stats)
+        return inp
+
+    @torch.no_grad()
+    def predict_future(self, x, v, phi, phi_dot):
+        inp = self.build_input(x, v, phi, phi_dot)
+        # repeat condition along batch dim, sample in one forward pass, then average
+        inp_rep = inp.expand(self.num_samples, -1)
+        pred = self.model.sample(inp_rep).mean(dim=0, keepdim=True)
+        if self.norm_stats is not None:
+            pred = denormalize_Y(pred, self.norm_stats)
+        return pred.squeeze(0)
+
+    @torch.no_grad()
+    def get_reference(self, x, v, phi, phi_dot):
+        pred = self.predict_future(x, v, phi, phi_dot)
+
+        x_ref, v_ref, x_pred, v_pred = decode_prediction(
+            pred=pred,
+            predict_mode=self.predict_mode,
+            horizon=self.horizon,
+            dt=self.dt,
+            device=self.device,
+        )
+
+        return x_ref, v_ref, x_pred, v_pred
+
 
 def load_diffusion_model(model_path, device):
     checkpoint = torch.load(model_path, map_location=device)
@@ -168,5 +269,10 @@ def load_diffusion_model(model_path, device):
 
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
+
+    if "norm_stats" in checkpoint:
+        checkpoint["norm_stats"] = {
+            k: v.to(device) for k, v in checkpoint["norm_stats"].items()
+        }
 
     return model, checkpoint

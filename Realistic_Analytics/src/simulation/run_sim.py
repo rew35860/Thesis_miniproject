@@ -33,14 +33,18 @@ def main():
 
     x, v, phi, omega = initialize_states(cfg)
 
-    # mode: sinusoidal, or mlp
-    model_path = "models/mlp_state_freq.pt"
-    oscillators, ref_gen, ctrl, sync_ctrl, omega = initialize_modules(cfg, "mlp", model_path, omega)
-    
-    results = run_simulation(cfg, oscillators, ref_gen, ctrl, sync_ctrl,
-                            x, v, phi, omega)
+    # mode: "sinusoidal", "mlp", or "diffusion"
+    model_mode = "diffusion"
+    model_path = f"models/{model_mode}_state_phase_trig_freq.pt"
 
-    plot_results(results, cfg.dt, folder=f"graphs/mlp")
+    oscillators, ref_gen, ctrl, sync_ctrl, omega, phase_est = initialize_modules(
+        cfg, model_mode, model_path, omega,
+        phase_estimator_path="models/pae.pt",
+    )
+    results = run_simulation(cfg, oscillators, ref_gen, ctrl, sync_ctrl,
+                             x, v, phi, omega, phase_estimator=phase_est)
+
+    plot_results(results, cfg.dt, folder=f"graphs/{model_mode}")
 
 
 if __name__ == "__main__":

@@ -158,10 +158,10 @@ def train_model(
 
 
 if __name__ == "__main__":
-    model_mode = "mlp"
+    model_mode = "diffusion"   # "mlp" or "diffusion"
     config = get_mlp_config() if model_mode == "mlp" else get_diffusion_config()
-    dataset_path = "./data/omega_random/dataset_state_freq.pt"
-    model_save_path = f"./models/{model_mode}_state_freq.pt"
+    dataset_path = "./data/dataset_state_phase_trig_freq.pt"
+    model_save_path = f"./models/{model_mode}_state_phase_trig_freq.pt"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
