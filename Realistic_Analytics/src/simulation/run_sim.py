@@ -1,12 +1,10 @@
 import torch
-from pathlib import Path
 from src.config import get_config
 from src.simulation.sim_helper import initialize_states, initialize_modules, run_simulation
 from src.utils.plotting import (
     plot_reference_trajectories,
     plot_actual_trajectories,
     plot_tracking_error,
-    plot_overlay_per_oscillator,
     plot_overlay_all_oscillator,
     plot_phase_evolution,
     plot_phase_error,
@@ -39,7 +37,7 @@ def main():
 
     oscillators, ref_gen, ctrl, sync_ctrl, omega, phase_est = initialize_modules(
         cfg, model_mode, model_path, omega,
-        phase_estimator_path="models/pae.pt",
+        phase_estimator_path="models/phase_estimator.pt",
     )
     results = run_simulation(cfg, oscillators, ref_gen, ctrl, sync_ctrl,
                              x, v, phi, omega, phase_estimator=phase_est)

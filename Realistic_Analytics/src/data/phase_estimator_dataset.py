@@ -3,6 +3,7 @@ from torch.utils.data import Dataset, ConcatDataset
 from tqdm import tqdm
 
 from src.config import get_config
+from src.data.generate_dataset import _sample_ic
 from src.simulation.sim_helper import initialize_modules, run_simulation
 from src.utils.dataset_io import save_dataset_to_pt
 
@@ -91,14 +92,6 @@ class TemporalPAEDataset(Dataset):
 
 
 # ── Dataset generation ───────────────────────────────────────────────────────
-
-def _sample_ic(cfg, seed, x_range=3.0, v_range=30.0):
-    torch.manual_seed(seed)
-    x   = (2 * torch.rand(cfg.N) - 1) * x_range
-    v   = (2 * torch.rand(cfg.N) - 1) * v_range
-    phi = torch.rand(cfg.N) * 2 * torch.pi
-    return x, v, phi
-
 
 def build_phase_estimator_dataset(
     cfg,

@@ -18,10 +18,6 @@ def initialize_states(cfg, seed=0):
     phi = torch.rand(cfg.N) * 2 * torch.pi
     omega = torch.ones(cfg.N) * (2.0 * torch.pi)
 
-    # training data generation: randomize frequencies a bit more to get more diverse data
-    # omega_scalar = torch.empty(1).uniform_(1.5 * torch.pi, 2.5 * torch.pi).item()
-    # omega = torch.ones(cfg.N) * omega_scalar
-
     return x, v, phi, omega
 
 
@@ -55,8 +51,8 @@ def build_phase_estimator(model_path, cfg):
 
     if "hidden_dim" in checkpoint and "num_layers" in checkpoint \
             and "model_state_dict" in checkpoint:
-        # Distinguish PAE (no input_dim key) from MLP (has input_dim key)
-        if "input_dim" not in checkpoint:
+        # PAE checkpoints have no "metadata" key; MLP checkpoints always do.
+        if "metadata" not in checkpoint:
             # PAE checkpoint
             model, checkpoint = load_pae(model_path, device=cfg.device)
             return PAEPhaseEstimator(
@@ -110,7 +106,7 @@ def build_reference_generator(model, model_path, cfg=None):
         )
 
     else:
-        raise ValueError(f"Unknown reference_type: {cfg.reference_type}")
+        raise ValueError(f"Unknown model mode: {model}")
     
     
 def run_simulation(cfg, oscillators, reference_generator,
@@ -131,6 +127,13 @@ def run_simulation(cfg, oscillators, reference_generator,
     omega_tilde_hist, xref_hist = [], []
     err_hist, u_hist = [], []
 
+    # EMA state for phase estimates — absorbs single-step 180° flips from the
+    # estimator without introducing meaningful lag (ω·dt ≈ 0.03 rad per step).
+    EMA_ALPHA = 0.3
+    if phase_estimator is not None:
+        sin_ema = torch.zeros(cfg.N, device=cfg.device)
+        cos_ema = torch.ones(cfg.N, device=cfg.device)   # initialise to φ=0
+
     for _ in range(cfg.T):
         x_next   = torch.zeros_like(x)
         v_next   = torch.zeros_like(v)
@@ -143,12 +146,17 @@ def run_simulation(cfg, oscillators, reference_generator,
 
         # --- estimate phases for all oscillators first (needed by sync controller) ---
         if phase_estimator is not None:
-            sin_phi_est = torch.zeros(cfg.N)
-            cos_phi_est = torch.zeros(cfg.N)
+            sin_phi_est = torch.zeros(cfg.N, device=cfg.device)
+            cos_phi_est = torch.zeros(cfg.N, device=cfg.device)
             for i in range(cfg.N):
                 s, c = phase_estimator.estimate(x[i], v[i], omega[i])
-                sin_phi_est[i] = s
-                cos_phi_est[i] = c
+                # EMA on (sin, cos) components then renormalise — a single
+                # 180° flip moves the EMA by only EMA_ALPHA, which is negligible.
+                sin_ema[i] = EMA_ALPHA * s + (1 - EMA_ALPHA) * sin_ema[i]
+                cos_ema[i] = EMA_ALPHA * c + (1 - EMA_ALPHA) * cos_ema[i]
+                norm = (sin_ema[i] ** 2 + cos_ema[i] ** 2).sqrt().clamp(min=1e-6)
+                sin_phi_est[i] = sin_ema[i] / norm
+                cos_phi_est[i] = cos_ema[i] / norm
 
         for i in range(cfg.N):
             if phase_estimator is not None:

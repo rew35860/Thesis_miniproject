@@ -1,59 +1,60 @@
-# src/config.py
 from dataclasses import dataclass
+
 
 @dataclass
 class Config:
-    device: str = "cpu"
-    N: int = 3
-    T: int = 2000
-    dt: float = 0.005
+    # ── simulation ─────────────────────────────────────────────────────────────
+    device: str  = "cpu"
+    N: int       = 3        # number of oscillators
+    T: int       = 2000     # simulation steps
+    dt: float    = 0.005    # timestep (s)
 
-    A: float = 1.0
-    m: float = 1.0
-    d: float = 0.4
-    k: float = 4.0
+    # ── oscillator physics ─────────────────────────────────────────────────────
+    A: float     = 1.0      # reference amplitude
+    m: float     = 1.0      # mass (kg)
+    d: float     = 0.4      # damping coefficient
+    k: float     = 4.0      # spring constant → natural freq ω_n = √(k/m) ≈ 2 rad/s
 
-    kp: float = 40.0
-    kd: float = 30.0
-    k_sync: float = 0.22
+    # ── PD controller ──────────────────────────────────────────────────────────
+    kp: float    = 40.0     # proportional gain
+    kd: float    = 30.0     # derivative gain
+
+    # ── synchronization controller ─────────────────────────────────────────────
+    k_sync: float = 0.22    # Kuramoto coupling strength
 
 
 @dataclass
 class MLPConfig:
-    batch_size: int = 128
-    hidden_dim: int = 128
-    num_layers: int = 3
-    lr: float = 1e-3
-    epochs: int = 100
+    batch_size:   int   = 128
+    hidden_dim:   int   = 128
+    num_layers:   int   = 3
+    lr:           float = 1e-3
+    epochs:       int   = 100
     weight_decay: float = 1e-6
 
 
 @dataclass
 class DiffusionConfig:
-    # === shared training params ===
-    batch_size: int = 128
-    hidden_dim: int = 256
-    num_layers: int = 4
-    lr: float = 1e-3
-    epochs: int = 100
+    # ── shared training params ─────────────────────────────────────────────────
+    batch_size:   int   = 128
+    hidden_dim:   int   = 256
+    num_layers:   int   = 4
+    lr:           float = 1e-3
+    epochs:       int   = 100
     weight_decay: float = 1e-6
 
-    # === diffusion-specific ===
-    num_diffusion_steps: int = 100
-    time_dim: int = 64
-
-    # === optional (good to include) ===
-    beta_schedule: str = "linear"   # or "cosine"
-    clip_denoised: bool = True
+    # ── diffusion-specific ─────────────────────────────────────────────────────
+    num_diffusion_steps: int = 100  # DDPM denoising steps T
+    time_dim:            int = 64   # sinusoidal time-embedding dimension
 
 
 @dataclass
 class PhaseEstimatorConfig:
-    batch_size: int = 256
-    hidden_dim: int = 64
-    num_layers: int = 3
-    lr: float = 1e-3
-    epochs: int = 100
+    batch_size:   int   = 256
+    hidden_dim:   int   = 64
+    num_layers:   int   = 3
+    lr:           float = 1e-3
+    epochs:       int   = 100
     weight_decay: float = 1e-6
 
 
@@ -67,4 +68,4 @@ def get_mlp_config():
     return MLPConfig()
 
 def get_diffusion_config():
-    return DiffusionConfig()    
+    return DiffusionConfig()

@@ -33,7 +33,7 @@ def main():
         print("  norm_stats present — denormalizing outputs")
 
     # ── Load dataset ─────────────────────────────────────────────────────────
-    _, X, Y, metadata, loaded_norm_stats, train_loader, val_loader, _ = make_dataloaders(
+    _, X, Y, _, _, _, val_loader, _ = make_dataloaders(
         dataset_path=DATASET_PATH,
         batch_size=256,
         return_metadata=True,
@@ -106,7 +106,7 @@ def main():
             y_t = Y[i].unsqueeze(0)
 
             y1 = model.sample(c).cpu()
-            y5 = model.sample(c.expand(5, -1)).mean(0, keepdim=True).cpu()
+            y5 = model.sample(c.expand(N_SAMPLES, -1)).mean(0, keepdim=True).cpu()
 
             if norm_stats:
                 y_t = denormalize_Y(y_t, norm_stats)
